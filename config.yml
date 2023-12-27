@@ -1,0 +1,13 @@
+schema:
+  fromCache: false
+  cacheFile: string
+  endpoint: string
+  licenseKey: string
+entities:
+  - name: dashboard
+    queries:
+      - actor.entity
+      - actor.entities
+      - actor.entitySearch
+emitters:
+  - src/emitters/jsii/jsii.ts
