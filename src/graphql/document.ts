@@ -1,39 +1,24 @@
-import {
-   GraphQLArgument,
-   GraphQLEnumType,
-   GraphQLField,
-   GraphQLInputObjectType,
-   GraphQLInterfaceType,
-   GraphQLList,
-   GraphQLNonNull,
-   GraphQLObjectType,
-   GraphQLOutputType,
-   GraphQLScalarType,
-   GraphQLType
-} from "graphql";
+import {GraphQLArgument, GraphQLEnumType, GraphQLField, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLOutputType, GraphQLScalarType, GraphQLType} from "graphql";
 import {GraphQLUnionType} from "graphql/type/definition";
 
 export class Document {
-   // private variableMap: Map<string, GraphQLArgument> = new Map()
+   private variableMap: Map<string, GraphQLArgument> = new Map()
 
    public constructor() {
    }
-
-   /*
-   export const CreateDashboard = gql`mutation CreateDashboard( $accountId: Int!, $dashboard: DashboardInput!, ) {
-     dashboardCreate( accountId: $accountId, dashboard: $dashboard, ) {
-       entityResult {
-         ...
-       }
-     }
-   }
-   */
 
    public getMutation(mutation: GraphQLField<any, any>): string {
       // The "type" of a mutation is its result, so we don't want field variables here
       const body = this.splunk(mutation.type)
       let value: string = this.header(mutation) + body
       value = value + this.footer(mutation)
+      return value
+   }
+
+   public getQuery(query: GraphQLField<any, any>): string {
+      const body = this.splunk(query.type)
+      let value: string = this.queryHeader(query) + body
+      value = value + this.queryFooter(query)
       return value
    }
 
@@ -68,11 +53,13 @@ export class Document {
 
    // Document variables are $variableName: type
    private documentVariables(args: readonly GraphQLArgument[]): string {
-      // args.forEach((v) => {
-      //    this.variableMap.set(v.name, v)
-      // })
+      // This is a bit wonky but it due to the ordering of the header output
+      args.forEach((v) => {
+         this.variableMap.set(v.name, v)
+      })
       let value = ''
-      args.forEach((v: GraphQLArgument) => {
+      this.variableMap.forEach((v, _k) => {
+         //args.forEach((v: GraphQLArgument) => {
          let f = this.parseField(v.type)
          value = value + ` \$${v.name}: ${f},`
 
@@ -85,14 +72,23 @@ export class Document {
 
    // @ts-ignore
    private fieldVariables(args: readonly GraphQLArgument[]): string {
-
       let value = ''
       args.forEach((v: GraphQLArgument) => {
          value = value + ` ${v.name}: \$${v.name},`
+         this.variableMap.set(v.name, v)
       })
       if (!(value == '')) {
          value = `( ${value} )`
       }
+      return value
+   }
+
+   // @ts-ignore
+   private queryHeader(query: GraphQLField<any, any>) {
+      const name = query.name.slice(0, 1).toUpperCase() + query.name.slice(1)
+      let value = `export const ${name} = gql \`\nquery ${name}`
+      value = `${value} ${this.documentVariables(query.args)}{`
+      value = `${value}\n${query.name} ${this.fieldVariables(query.args)}`
       return value
    }
 
@@ -102,6 +98,12 @@ export class Document {
       value = `${value} ${this.documentVariables(mutation.args)}{`
       value = `${value}\n${mutation.name} ${this.fieldVariables(mutation.args)}`
       return value
+   }
+
+
+   // @ts-ignore
+   private queryFooter(query: GraphQLField<any, any>) {
+      return '\n}\n`\n';
    }
 
    // @ts-ignore
@@ -151,7 +153,12 @@ export class Document {
          return this.splunk(type.ofType, value, depth)
 
       } else if (this.isGraphQLField(type)) {
-         return this.splunk(type.type, `${value}\n${depth}${type.name}`, depth)
+         const args = this.fieldVariables(type.args)
+         if ('FRAGMENTNAME' in type.extensions) {
+            return this.splunk(type.type, `${value}\n${depth}${type.extensions.FRAGMENTNAME} ${args}`, depth)
+         } else {
+            return this.splunk(type.type, `${value}\n${depth}${type.name} ${args}`, depth)
+         }
 
       } else {
          console.warn(`documents.splunk: unknown type: ${type}`)

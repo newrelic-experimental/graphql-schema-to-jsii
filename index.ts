@@ -2,30 +2,10 @@
 
 import * as fs from "fs"
 import * as path from "node:path"
-import {
-   buildClientSchema,
-   buildSchema,
-   getIntrospectionQuery,
-   GraphQLField,
-   GraphQLFieldMap,
-   GraphQLInputFieldMap,
-   GraphQLList,
-   GraphQLObjectType,
-   GraphQLSchema,
-   GraphQLType,
-   IntrospectionQuery,
-   printSchema
-} from "graphql"
+import {buildClientSchema, buildSchema, getIntrospectionQuery, GraphQLField, GraphQLFieldMap, GraphQLInputFieldMap, GraphQLList, GraphQLObjectType, GraphQLSchema, GraphQLType, IntrospectionQuery, printSchema} from "graphql"
 import {GraphQLClient} from 'graphql-request'
 import {Configuration} from './src/config/configuration'
-import {
-   GraphQLEnumType,
-   GraphQLInputObjectType,
-   GraphQLInterfaceType,
-   GraphQLNonNull,
-   GraphQLScalarType,
-   GraphQLUnionType
-} from "graphql/type/definition";
+import {argsToArgsConfig, GraphQLEnumType, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLNonNull, GraphQLScalarType, GraphQLUnionType} from "graphql/type/definition";
 
 const config = Configuration.getInstance()
 
@@ -56,6 +36,7 @@ async function main() {
 
       const query: IntrospectionQuery = await client.request(getIntrospectionQuery())
       schema = buildClientSchema(query)
+      config.setSchema(schema)
       if (config.saveSchema()) {
          const outputFile = path.join(__dirname, config.schemaFile())
          await fs.promises.writeFile(outputFile, printSchema(schema))
@@ -89,10 +70,11 @@ async function main() {
    // TODO include <entity>Entity and <entity>EntityOutline types, replace Entity and EntityOutline with them
    const queries = schema.getQueryType()
    if (queries) {
-      config.setPathType('query')
+      config.setPathType('mutation')
       const fields = queries.getFields()
       if (fields) {
          for (let fieldsKey in fields) {
+            const field = fields[fieldsKey]
             const groupName = config.captureQuery(fieldsKey)
             if (groupName) {
                let group = groups.get(groupName)
@@ -101,9 +83,32 @@ async function main() {
                   group.name = groupName
                   groups.set(groupName, group)
                }
-               const field = fields[fieldsKey]
-               group.queries.push(field)
-               splunk(field, group.types, field.name)
+               // This is two problems:
+               // 1. We need our own, trimmed, Actor type with a single field of Entity for type definitions
+               // 2. During document generation we need to include the DashboardEntity fragment at the end of the Entity
+               // const entity = schema.getType('Entity')
+               // if (entity != undefined && entity instanceof GraphQLInterfaceType) {
+               //    const dbe = schema.getType('DashboardEntity')
+               //    if (dbe != undefined && dbe instanceof GraphQLObjectType) {
+               //       const entityConfig = entity.toConfig()
+               //       entityConfig.fields['DashboardEntity'] = {type: dbe}
+               //       const myEntity = new GraphQLInterfaceType(entityConfig)
+               //       // @ts-ignore
+               //       const myActor = new GraphQLObjectType({
+               //          name: 'actor',
+               //          fields: {
+               //             entity: {type: myEntity,},
+               //          }
+               //       });
+
+               const myActor = buildField(schema, field)
+               if (myActor != null) {
+                  splunk(myActor, group.types, myActor.name)
+                  group.queries.push(myActor)
+               }
+               //    }
+               //}
+               // splunk(field, group.types, field.name)
             }
          }
       }
@@ -116,6 +121,54 @@ async function main() {
    }
 }
 
+// Type names must start with uppercase
+// Field names must start with lowercase
+// Both must be camelcase
+function buildField(schema: GraphQLSchema, actor: GraphQLField<any, any>): GraphQLField<any, any> | null {
+   const dbe = schema.getType('DashboardEntity')
+   const entity = schema.getType('Entity')
+   if (dbe == undefined || !(dbe instanceof GraphQLObjectType) || entity == undefined || !(entity instanceof GraphQLInterfaceType)) {
+      return null
+   }
+   const entityConfig = entity.toConfig()
+   entityConfig.fields['dashboardEntity'] = {extensions: {FRAGMENTNAME: '... on DashboardEntity'}, type: dbe}
+   const myEntity = new GraphQLInterfaceType(entityConfig)
+   const originalActor = actor.type
+   if (!(originalActor instanceof GraphQLObjectType)) {
+      return null
+   }
+   const originalEntityField = originalActor.getFields()['entity']
+   const entityField = {
+      description: originalEntityField.description,
+      type: myEntity,
+      args: argsToArgsConfig(originalEntityField.args),
+      resolve: originalEntityField.resolve,
+      subscribe: originalEntityField.subscribe,
+      deprecationReason: originalEntityField.deprecationReason,
+      extensions: originalEntityField.extensions,
+      astNode: originalEntityField.astNode,
+   }
+
+   const trimmedActor = new GraphQLObjectType({
+      name: 'Actor',
+      fields: {
+         entity: entityField,
+      }
+   });
+
+   const trimmedActorField = {
+      name: actor.name,
+      description: actor.description,
+      type: trimmedActor,
+      args: actor.args,
+      resolve: actor.resolve,
+      subscribe: actor.subscribe,
+      deprecationReason: actor.deprecationReason,
+      extensions: actor.extensions,
+      astNode: actor.astNode,
+   }
+   return trimmedActorField
+}
 
 function isGraphQLField(a: any): a is GraphQLField<any, any> {
    return ('name' in a && 'description' in a && 'type' in a && 'args' in a && 'deprecationReason' in a && 'extensions' in a && 'astNode' in a)

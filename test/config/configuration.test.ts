@@ -1,22 +1,22 @@
 import {Configuration} from '../../src/config/configuration'
 
-test('Before the Entity', () => {
+test('inQueryPath: Before the Entity', () => {
    const c = Configuration.getInstance()
-   expect(c.inQueryPath('dashboard', 'actor.entity.name')).toBe(true)
+   expect(c.inQueryPath('actor.entity.name')).toBe(true)
 })
 
-test('After the Entity', () => {
+test('inQueryPath: On the Entity', () => {
    const c = Configuration.getInstance()
-   expect(c.inQueryPath('Dashboard', 'actor.entity.DashboardEntity.name')).toBe(true)
+   expect(c.inQueryPath('actor.entity.DashboardEntity')).toBe(true)
 })
 
-test('On the Entity', () => {
+test('inQueryPath: After the Entity', () => {
    const c = Configuration.getInstance()
-   expect(c.inQueryPath('Dashboard', 'actor.entity.DashboardEntity')).toBe(true)
+   expect(c.inQueryPath('actor.entity.DashboardEntity.name')).toBe(true)
 })
 
-test('Wrong Entity', () => {
+test('inQueryPath: Wrong Entity', () => {
    const c = Configuration.getInstance()
-   expect(c.inQueryPath('Dashboard', 'actor.entity.AlertableEntity.name')).toBe(false)
+   expect(c.inQueryPath('actor.entity.AlertableEntity')).toBe(false)
 })
 

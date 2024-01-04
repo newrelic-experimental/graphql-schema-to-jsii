@@ -1,14 +1,7 @@
 import {Emitter} from "../emitter";
 import {Group} from "../../../index";
 import {GraphQLField, GraphQLType} from "graphql";
-import {
-   GraphQLEnumType,
-   GraphQLInputObjectType,
-   GraphQLInterfaceType,
-   GraphQLNonNull,
-   GraphQLScalarType,
-   GraphQLUnionType
-} from "graphql/type/definition";
+import {GraphQLEnumType, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLNonNull, GraphQLScalarType, GraphQLUnionType} from "graphql/type/definition";
 import {GraphQLList, GraphQLObjectType} from "graphql/index";
 import * as fs from "fs";
 import {WriteStream} from "node:fs";
@@ -49,12 +42,15 @@ export class Jsii implements Emitter {
          this.mutationToGraphQLDoc(v, stream)
       })
 
+      group.queries.forEach((v) => {
+         this.queryToGraphQLDoc(v, stream)
+      })
+
       group.types.forEach((v) => {
          // FIXME trim actor to just what we want
          this.typeToJsiiType(v, stream)
       })
 
-      // FIXME deal with queries
       this.footer(stream)
       stream.close()
    }
@@ -63,6 +59,12 @@ export class Jsii implements Emitter {
    private mutationToGraphQLDoc(v: GraphQLField<any, any>, stream: WriteStream) {
       const doc = new Document()
       stream.write(doc.getMutation(v))
+   }
+
+
+   private queryToGraphQLDoc(v: GraphQLField<any, any>, stream: WriteStream) {
+      const doc = new Document()
+      stream.write(doc.getQuery(v))
    }
 
    private typeToJsiiType(type: GraphQLType, stream: WriteStream) {

@@ -3,24 +3,11 @@ import {parse} from 'yaml'
 import {Command} from 'commander'
 import {Emitter} from "../emitters/emitter";
 import {Jsii} from "../emitters/jsii/jsii";
-
-// @ts-ignore
-class params {
-   schema?: {
-      fromCache: boolean
-      cacheFile: string
-      endpoint: string
-      licenseKey: string
-   }
-   emitters?: string[]
-   mutations?: string[]
-   queries?: string[]
-}
-
+import {GraphQLField, GraphQLSchema, GraphQLType} from "graphql/type";
 
 // TODO Command line
 // TODO Config file
-type schemaMeta = {
+type SchemaMeta = {
    fromCache: boolean;
    cacheFile: string;
    endpoint: string;
@@ -32,7 +19,7 @@ type Entity = {
    queries: string[]
 }
 type Config = {
-   schema: schemaMeta
+   schemaMeta: SchemaMeta
    entities: Entity[]
    emitters: string[]
 }
@@ -40,6 +27,7 @@ type Config = {
 // TODO Language (emitter) plugins
 export class Configuration {
    private static instance: Configuration
+   private schema?: GraphQLSchema;
    // @ts-ignore
    private config: Config
    private pathType: string = ''
@@ -81,16 +69,20 @@ export class Configuration {
       return Configuration.instance
    }
 
+   setSchema(schema: GraphQLSchema) {
+      this.schema = schema
+   }
+
    public getLicenseKey(): string {
-      return this.config.schema.licenseKey
+      return this.config.schemaMeta.licenseKey
    }
 
    public cached(): boolean {
-      return this.config.schema.fromCache
+      return this.config.schemaMeta.fromCache
    }
 
    public schemaFile(): string {
-      return this.config.schema.cacheFile
+      return this.config.schemaMeta.cacheFile
    }
 
    public saveSchema(): boolean {
@@ -133,9 +125,8 @@ export class Configuration {
       }
    }
 
-   //@ts-ignore
-   public inMutationPath(path: string = ''): boolean {
-      // By definition true- we're capture the mutation so the path is always valid
+   public inMutationPath(_path: string = ''): boolean {
+      // By definition true, we're capture the mutation so the path is always valid
       return true
    }
 
@@ -167,7 +158,7 @@ export class Configuration {
          if (path.endsWith('Entity') || path.endsWith('Entity.') || path.endsWith('EntityOutline') || path.endsWith('EntityOutline.')) {
             result = false
             this.config.entities.forEach((entity) => {
-               if (path.includes(entity.name)) {
+               if (path.toLowerCase().includes(entity.name.toLowerCase())) {
                   result = true
                   return
                }
@@ -178,6 +169,31 @@ export class Configuration {
          }
       }
       return result
+   }
+
+   public substituteType(type: GraphQLType | GraphQLField<any, any>): GraphQLType | GraphQLField<any, any> {
+      if ('name' in type) {
+         // FIXME how do I know the entity?
+         if (type.name == 'Entity') {
+            const t = this.schema?.getType('')
+            if (t == undefined) {
+               console.warn('', type.name)
+               return type
+            }
+            return t
+         }
+         if (type.name == 'EntityOutline') {
+            const t = this.schema?.getType('')
+            if (t == undefined) {
+               console.warn('', type.name)
+               return type
+            }
+            return t
+         }
+         return type
+      } else {
+         return type
+      }
    }
 
    public getEmitters(): Emitter[] {
