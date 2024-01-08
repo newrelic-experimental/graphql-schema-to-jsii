@@ -22,7 +22,7 @@ export class Jsii implements Emitter {
       EpochMilliseconds: 'string',
       Boolean: 'boolean',
       Milliseconds: 'string',
-      AttributeMap: '{}',
+      AttributeMap: 'Record<string, any>',
       EntityAlertViolationInt: 'string',
       NerdStorageDocument: 'string',
       NrdbResult: 'string',
