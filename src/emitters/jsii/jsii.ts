@@ -1,17 +1,18 @@
 import {Emitter} from "../emitter";
-import {Group} from "../../../index";
 import {GraphQLField, GraphQLType} from "graphql";
 import {GraphQLEnumType, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLNonNull, GraphQLScalarType, GraphQLUnionType} from "graphql/type/definition";
 import {GraphQLList, GraphQLObjectType} from "graphql/index";
 import * as fs from "fs";
 import {WriteStream} from "node:fs";
 import {Document} from '../../graphql/document'
+import {Entity} from "../../graphql/entity";
+import {logger} from '../../config/configuration'
+
 
 // import * as gqlg from 'gql-generator'
 
 export class Jsii implements Emitter {
 
-   // @ts-ignore
    static Scalars: Record<string, string> = {
       String: 'string',
       EntityGuid: 'string',
@@ -35,18 +36,23 @@ export class Jsii implements Emitter {
    public constructor() {
    }
 
-   public emit(name: string, group: Group): void {
-      const stream = fs.createWriteStream(`./local/${name}-types.ts`)
+   public emit(entity: Entity): void {
+      const stream = fs.createWriteStream(`./local/${entity.name}-types.ts`)
       this.header(stream)
-      group.mutations.forEach((v) => {
-         this.mutationToGraphQLDoc(v, stream)
-      })
 
-      group.queries.forEach((v) => {
-         this.queryToGraphQLDoc(v, stream)
-      })
+      for (const [name, field] of Object.entries(entity.mutations)) {
+         if (field) {
+            this.mutationToGraphQLDoc(name, field, stream)
+         }
+      }
 
-      group.types.forEach((v) => {
+      for (const [name, field] of Object.entries(entity.queries)) {
+         if (field) {
+            this.queryToGraphQLDoc(name, field, stream)
+         }
+      }
+
+      entity.types.forEach((v) => {
          // FIXME trim actor to just what we want
          this.typeToJsiiType(v, stream)
       })
@@ -55,16 +61,15 @@ export class Jsii implements Emitter {
       stream.close()
    }
 
-   // @ts-ignore
-   private mutationToGraphQLDoc(v: GraphQLField<any, any>, stream: WriteStream) {
+   private mutationToGraphQLDoc(name: string, v: GraphQLField<any, any>, stream: WriteStream) {
       const doc = new Document()
-      stream.write(doc.getMutation(v))
+      stream.write(doc.getMutation(name, v))
    }
 
 
-   private queryToGraphQLDoc(v: GraphQLField<any, any>, stream: WriteStream) {
+   private queryToGraphQLDoc(name: string, v: GraphQLField<any, any>, stream: WriteStream) {
       const doc = new Document()
-      stream.write(doc.getQuery(v))
+      stream.write(doc.getQuery(name, v))
    }
 
    private typeToJsiiType(type: GraphQLType, stream: WriteStream) {
@@ -85,7 +90,7 @@ export class Jsii implements Emitter {
       } else if (type instanceof GraphQLList) {
          this.jsiiList(type, stream)
       } else {
-         console.error("Unknown type: ", type)
+         logger.error("typeToJsiiType: Unknown type: ", type)
       }
    }
 
@@ -95,7 +100,7 @@ export class Jsii implements Emitter {
     */
    private jsiiScalar(type: GraphQLScalarType<any, any>, stream: WriteStream) {
       if (!(type.name in Jsii.Scalars)) {
-         console.error("Unknown: jsiiScalar: scalar:", type)
+         logger.error("jsiiScalar: Unknown: jsiiScalar: scalar:", type)
          const line = `// FIXME unknown scalar\nexport type ${type.name} = string\n`
          stream.write(line)
       }
@@ -215,7 +220,6 @@ export class Jsii implements Emitter {
       }
    }
 
-   // @ts-ignore
-   private footer(stream: WriteStream) {
+   private footer(_stream: WriteStream) {
    }
 }

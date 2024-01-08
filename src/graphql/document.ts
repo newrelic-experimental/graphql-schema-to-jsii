@@ -1,5 +1,6 @@
 import {GraphQLArgument, GraphQLEnumType, GraphQLField, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLOutputType, GraphQLScalarType, GraphQLType} from "graphql";
 import {GraphQLUnionType} from "graphql/type/definition";
+import {logger} from '../config/configuration'
 
 export class Document {
    private variableMap: Map<string, GraphQLArgument> = new Map()
@@ -7,17 +8,17 @@ export class Document {
    public constructor() {
    }
 
-   public getMutation(mutation: GraphQLField<any, any>): string {
+   public getMutation(name: string, mutation: GraphQLField<any, any>): string {
       // The "type" of a mutation is its result, so we don't want field variables here
       const body = this.splunk(mutation.type)
-      let value: string = this.header(mutation) + body
+      let value: string = this.header(name, mutation) + body
       value = value + this.footer(mutation)
       return value
    }
 
-   public getQuery(query: GraphQLField<any, any>): string {
+   public getQuery(name: string, query: GraphQLField<any, any>): string {
       const body = this.splunk(query.type)
-      let value: string = this.queryHeader(query) + body
+      let value: string = this.queryHeader(name, query) + body
       value = value + this.queryFooter(query)
       return value
    }
@@ -70,7 +71,6 @@ export class Document {
       return value
    }
 
-   // @ts-ignore
    private fieldVariables(args: readonly GraphQLArgument[]): string {
       let value = ''
       args.forEach((v: GraphQLArgument) => {
@@ -83,35 +83,36 @@ export class Document {
       return value
    }
 
-   // @ts-ignore
-   private queryHeader(query: GraphQLField<any, any>) {
+   private queryHeader(type: string, query: GraphQLField<any, any>) {
       const name = query.name.slice(0, 1).toUpperCase() + query.name.slice(1)
-      let value = `export const ${name} = gql \`\nquery ${name}`
+      let value = `export const ${type}${name} = gql \`\nquery ${name}`
       value = `${value} ${this.documentVariables(query.args)}{`
       value = `${value}\n${query.name} ${this.fieldVariables(query.args)}`
       return value
    }
 
-   private header(mutation: GraphQLField<any, any>) {
+   private header(type: string, mutation: GraphQLField<any, any>) {
       const name = mutation.name.slice(0, 1).toUpperCase() + mutation.name.slice(1)
-      let value = `export const ${name} = gql \`\nmutation ${name}`
+      let value = `export const ${type}${name} = gql \`\nmutation ${name}`
       value = `${value} ${this.documentVariables(mutation.args)}{`
       value = `${value}\n${mutation.name} ${this.fieldVariables(mutation.args)}`
       return value
    }
 
 
-   // @ts-ignore
-   private queryFooter(query: GraphQLField<any, any>) {
+   private queryFooter(_query: GraphQLField<any, any>) {
       return '\n}\n`\n';
    }
 
-   // @ts-ignore
-   private footer(mutation: GraphQLField<any, any>) {
+   private footer(_mutation: GraphQLField<any, any>) {
       return '\n}\n`\n';
    }
 
    private splunk(type: GraphQLOutputType | GraphQLField<any, any>, value = '', depth = ''): string {
+      if (!type) {
+         logger.warn(`document.splunk: type is undefined`)
+         return value
+      }
       if (('deprecationReason' in type) && type.deprecationReason != undefined) {
          return value
       }
@@ -161,7 +162,7 @@ export class Document {
          }
 
       } else {
-         console.warn(`documents.splunk: unknown type: ${type}`)
+         logger.warn(`documents.splunk: unknown type: ${type}`)
       }
       return value
    }

@@ -1,5 +1,5 @@
-import {Group} from '../../index'
+import {Entity} from '../graphql/entity'
 
 export interface Emitter {
-   emit(k: string, v: Group): void
+   emit(entity: Entity): void
 }
