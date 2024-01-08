@@ -11,7 +11,6 @@ import {
    GraphQLNonNull,
    GraphQLObjectType,
    GraphQLScalarType,
-   GraphQLSchema,
    GraphQLType,
    GraphQLUnionType,
    isInterfaceType,
@@ -45,15 +44,15 @@ export class Entity {
          const mutationFields = mutations.getFields()
          if (entityConfig.create) {
             this.mutations.create = mutationFields[entityConfig.create]
-            //this.splunk(mutationFields[entityConfig.create], this.types)
+            this.splunk(mutationFields[entityConfig.create], this.types)
          }
          if (entityConfig.update) {
             this.mutations.update = mutationFields[entityConfig.update]
-            //this.splunk(mutationFields[entityConfig.update], this.types)
+            this.splunk(mutationFields[entityConfig.update], this.types)
          }
          if (entityConfig.delete) {
             this.mutations.delete = mutationFields[entityConfig.delete]
-            //this.splunk(mutationFields[entityConfig.delete], this.types)
+            this.splunk(mutationFields[entityConfig.delete], this.types)
          }
       }
 
@@ -83,59 +82,7 @@ export class Entity {
       }
    }
 
-   // @ts-ignore
-   buildField2(schema: GraphQLSchema, actorField: GraphQLField<any, any>): GraphQLField<any, any> | null {
-      const dashboardEntity = schema.getType('DashboardEntity')
-      const entity = schema.getType('Entity')
-      if (dashboardEntity == undefined || !(dashboardEntity instanceof GraphQLObjectType) || entity == undefined || !(entity instanceof GraphQLInterfaceType)) {
-         return null
-      }
-
-      const entityConfig = entity.toConfig()
-      entityConfig.fields['dashboardEntity'] = {extensions: {FRAGMENTNAME: '... on DashboardEntity'}, type: dashboardEntity}
-      const newEntity = new GraphQLInterfaceType(entityConfig)
-
-      const actor = actorField.type
-      if (!(actor instanceof GraphQLObjectType)) {
-         return null
-      }
-
-      const entityField = actor.getFields()['entity']
-      const newEntityField = {
-         description: entityField.description,
-         type: newEntity,
-         args: argsToArgsConfig(entityField.args),
-         resolve: entityField.resolve,
-         subscribe: entityField.subscribe,
-         deprecationReason: entityField.deprecationReason,
-         extensions: entityField.extensions,
-         astNode: entityField.astNode,
-      }
-
-      const newActor = new GraphQLObjectType({
-         name: 'Actor',
-         fields: {
-            entity: newEntityField,
-         }
-      });
-
-      const newActorField = {
-         name: actorField.name,
-         description: actorField.description,
-         type: newActor,
-         args: actorField.args,
-         resolve: actorField.resolve,
-         subscribe: actorField.subscribe,
-         deprecationReason: actorField.deprecationReason,
-         extensions: actorField.extensions,
-         astNode: actorField.astNode,
-      }
-      return newActorField
-   }
-
    private splunk(type: GraphQLType | GraphQLField<any, any>, types: Map<string, GraphQLType>) {
-      //function splunk(type: GraphQLType | GraphQLField<any, any>, types: Map<string, GraphQLType>: string, path: string, inPath: (entity:string, path:string)=>boolean) {
-      logger.debug(`entity.splunk: type: ${type}`)
       if (!type) {
          logger.warn("entity.splunk: type undefined")
          return
@@ -178,13 +125,7 @@ export class Entity {
 
          // Case of almost last resort
       } else if (this.isGraphQLField(type)) {
-         // Weird special case
-         //if (type.name == path) {
          this.splunk(type.type, types)
-         //} else {
-         //   this.splunk(type.type, types, types + '.' + type.name)
-         // }
-         //splunk(type.type, types + '.' + type.name)
          type.args.forEach((arg) => {
             this.splunk(arg.type, types)
          })
@@ -217,7 +158,6 @@ export class Entity {
       })
    }
 
-   // FYI GraphQLField is not the same as a field entry on a Object or Interface type
    private buildField(originalField: GraphQLField<any, any>, fieldConfig: FieldConfig): GraphQLField<any, any> {
       logger.debug(`buildField: ${fieldConfig.name}`)
       const field: GraphQLField<any, any> = {
@@ -254,6 +194,7 @@ export class Entity {
       logger.debug(`buildObjectType: ${fieldConfig.name}`)
 
       // Build the field map for the new object
+      // BE VERY CAREFUL to mutation only typeConfig
       const typeConfig = originalType.toConfig()
       const originalFieldMap = originalType.getFields()
       let newFieldMap: ObjMap<any> = {}
@@ -266,7 +207,7 @@ export class Entity {
       if (fieldConfig.subFields) {
          for (let subField of fieldConfig.subFields) {
             const type = this.buildType(subField)
-            newFieldMap[subField.name] = this.asField(originalFieldMap[subField.name], type)
+            newFieldMap[subField.name] = this.asField(originalFieldMap[subField.name], type, subField)
          }
       }
       typeConfig.fields = newFieldMap
@@ -279,6 +220,7 @@ export class Entity {
 
       logger.debug(`buildInterfaceType: ${fieldConfig.name}`)
       // Build the field map for the new object
+      // BE VERY CAREFUL to mutation only typeConfig
       const typeConfig = originalType.toConfig()
       const originalFieldMap = originalType.getFields()
       let newFieldMap: ObjMap<any> = {}
@@ -291,7 +233,7 @@ export class Entity {
       if (fieldConfig.subFields) {
          for (let subField of fieldConfig.subFields) {
             const type = this.buildType(subField)
-            newFieldMap[subField.name] = this.asField(originalFieldMap[subField.name], type)
+            newFieldMap[subField.name] = this.asField(originalFieldMap[subField.name], type, subField)
          }
       }
       typeConfig.fields = newFieldMap
@@ -300,11 +242,20 @@ export class Entity {
       return newType
    }
 
-   private asField(graphQLField: GraphQLField<any, any>, type: GraphQLObjectType | GraphQLInterfaceType): {} {
-      // TODO handle extensions, depends on FieldConfig (new param)
+   // DIRE WARNING!
+   // This cannot return a GraphQLField because args MUST BE an object and not an array!
+   private asField(graphQLField: GraphQLField<any, any>, type: GraphQLObjectType | GraphQLInterfaceType, fieldConfig: FieldConfig): {} {
+      let extension = {}
+      if (fieldConfig.fragmentName) {
+         // @ts-ignore
+         extension['FRAGMENTNAME'] = fieldConfig.fragmentName
+      }
       let result = {}
       if (graphQLField) {
-         logger.debug(`asField: ${type} ${graphQLField}`)
+         for (const [k, v] of Object.entries(graphQLField.extensions)) {
+            // @ts-ignore
+            extension[k] = v
+         }
          result = {
             name: graphQLField.name,
             description: graphQLField.description,
@@ -313,11 +264,10 @@ export class Entity {
             resolve: graphQLField.resolve,
             subscribe: graphQLField.subscribe,
             deprecationReason: graphQLField.deprecationReason,
-            extensions: graphQLField.extensions,
+            extensions: extension,
             astNode: graphQLField.astNode,
          }
       } else {
-         logger.debug(`asField: ${type} ${graphQLField}`)
          result = {
             name: type.name,
             description: undefined,
@@ -326,104 +276,11 @@ export class Entity {
             resolve: undefined,
             subscribe: undefined,
             deprecationReason: undefined,
-            extensions: {},
+            extensions: extension,
             astNode: undefined,
 
          }
       }
       return result
-   }
-
-   // @ts-ignore
-   private buildQuery(originalField: GraphQLField<any, any> | undefined, fieldConfig: FieldConfig): GraphQLField<any, any> {
-      const originalType = this.config.schema?.getType(fieldConfig.type)
-      if (!originalType) {
-         throw new Error(`Underlying type not found: ${fieldConfig.type}`)
-      }
-
-      if (!(isObjectType(originalType) || isInterfaceType(originalType))) {
-         throw new Error(`Type has no fields: ${originalType}`)
-      }
-
-      // Build the field map for the new object
-      const originalFieldMap = originalType.getFields()
-      let newFieldMap: ObjMap<any> = {}
-      if (!fieldConfig.prune) {
-         // We're not pruning so grab the original fields
-         newFieldMap = originalType.getFields()
-      }
-
-      // Replace or create the subfields
-      if (fieldConfig.subFields) {
-         for (let subField of fieldConfig.subFields) {
-            const field = this.buildQuery(originalFieldMap[subField.name], subField)
-            newFieldMap[field.name] = field
-         }
-      }
-
-      // Make a new object
-      let newType: GraphQLObjectType | GraphQLInterfaceType
-      if (originalType instanceof GraphQLObjectType) {
-         newType = new GraphQLObjectType({
-            name: originalType.name,
-            fields: () => (newFieldMap),
-            description: originalType.description,
-            interfaces: originalType.getInterfaces,
-            isTypeOf: originalType.isTypeOf,
-            extensions: originalType.extensions,
-            astNode: originalType.astNode,
-            extensionASTNodes: originalType.extensionASTNodes,
-         })
-      } else {
-         newType = new GraphQLInterfaceType({
-            name: originalType.name,
-            fields: () => (newFieldMap),
-            description: originalType.description,
-            interfaces: originalType.getInterfaces,
-            extensions: originalType.extensions,
-            astNode: originalType.astNode,
-            extensionASTNodes: originalType.extensionASTNodes,
-            resolveType: originalType.resolveType,
-         })
-      }
-      logger.debug(`buildQuery: newType.fields: ${newType.getFields()}`)
-
-      let extensions: any
-      if (fieldConfig.fragmentName) {
-         extensions = {FRAGMENTNAME: fieldConfig.fragmentName}
-      } else {
-         if (originalField) {
-            extensions = originalField.extensions
-         }
-      }
-      // Make the new field
-      let newField: GraphQLField<any, any>
-      if (originalField) {
-         newField = {
-            name: originalField.name,
-            description: originalField.description,
-            type: newType,
-            args: originalField.args,
-            resolve: originalField.resolve,
-            subscribe: originalField.subscribe,
-            deprecationReason: originalField.deprecationReason,
-            extensions: extensions,
-            astNode: originalField.astNode,
-         }
-         return newField
-      } else {
-         newField = {
-            name: fieldConfig.name,
-            description: undefined,
-            type: newType,
-            args: [],
-            resolve: undefined,
-            subscribe: undefined,
-            deprecationReason: undefined,
-            extensions: extensions,
-            astNode: undefined,
-         }
-      }
-      return newField
    }
 }

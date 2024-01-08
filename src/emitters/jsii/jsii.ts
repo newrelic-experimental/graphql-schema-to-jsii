@@ -8,9 +8,6 @@ import {Document} from '../../graphql/document'
 import {Entity} from "../../graphql/entity";
 import {logger} from '../../config/configuration'
 
-
-// import * as gqlg from 'gql-generator'
-
 export class Jsii implements Emitter {
 
    static Scalars: Record<string, string> = {
@@ -53,7 +50,6 @@ export class Jsii implements Emitter {
       }
 
       entity.types.forEach((v) => {
-         // FIXME trim actor to just what we want
          this.typeToJsiiType(v, stream)
       })
 
