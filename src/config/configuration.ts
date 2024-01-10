@@ -1,11 +1,14 @@
+#!/usr/bin/env node --require ts-node/register
 import * as fs from 'fs'
 import {Emitter} from "../emitters/emitter"
 import {Jsii} from "../emitters/jsii/jsii"
-import {GraphQLField, GraphQLSchema, GraphQLType} from "graphql/type"
+import {GraphQLSchema} from "graphql/type"
 import path from "node:path";
 import {createLogger, format, Logger, transports,} from 'winston';
 import {buildClientSchema, buildSchema, getIntrospectionQuery, IntrospectionQuery, printSchema} from "graphql";
 import {GraphQLClient} from "graphql-request";
+import {Command} from "commander";
+import {parse} from "yaml";
 
 
 export type EntityConfig = {
@@ -29,7 +32,7 @@ class Config {
    useCached: boolean = true
    saveSchema: boolean = true
    schemaFile: string = './schema.gql'
-   schemaUrl: string = ' https://api.newrelic.com/graphql'
+   schemaUrl: string = 'https://api.newrelic.com/graphql'
    licenseKey: string = ''
    logLevel: string = 'info'
    entities: EntityConfig[] = []
@@ -43,64 +46,70 @@ export class Configuration {
    private readonly config: Config
 
    private constructor() {
-      this.config = new Config()
-      this.setupLogging()
-      this.loadSchema()
+
+      // Let comannderjs handle the command line https://github.com/tj/commander.js
+      const program = new Command()
+      program
+         .option('-c, --configFile <string>', 'path to yaml configuration file')
+         .option('-l, --logLevel <string>', 'logging level')
+         .option('-k, --licenseKey <string>', 'Introspection license key')
+
+      // Don't fail when running jest
+      program.exitOverride()
+      try {
+         program.parse(process.argv)
+      } catch (err) {
+      }
+      const options = program.opts()
+
+      // Try envvars if no command line options
+      const envConfig = process.env['GSTJ_CONFIG']
+      if (!options.configFile) {
+         if (!envConfig) {
+            options.configFile = './config.yml'
+         } else {
+            options.configFile = envConfig
+         }
+      }
+      const envLogLevel = process.env['GSTJ_LOGLEVEL']
+      if (!options.logLevel) {
+         if (envLogLevel) {
+            options.logLevel = envLogLevel
+         }
+      }
+      const envLicenseKey = process.env['GSTJ_LICENSEKEY']
+      if (!options.licenseKey) {
+         if (envLicenseKey) {
+            options.licenseKey = envLicenseKey
+         }
+      }
 
       // Process config file
-      // const buffer = fs.readFileSync("./local/config.yml", 'utf-8')
-      // this.config = parse(buffer) as Config
-      this.config.logLevel = 'debug'
-      this.config.entities = [{
-         name: 'dashboards',
-         create: 'dashboardCreate',
-         update: 'dashboardUpdate',
-         delete: 'dashboardDelete',
-         read: [{
-            name: 'actor',
-            type: 'Actor',
-            prune: true,
-            subFields: [{
-               name: 'entity',
-               type: 'Entity',
-               prune: false,
-               subFields: [{
-                  name: 'dashboardEntity',
-                  type: 'DashboardEntity',
-                  prune: false,
-                  fragmentName: '... on DashboardEntity'
-               }]
-            }]
-         }],
-         list: [{
-            name: 'actor',
-            type: 'Actor',
-            prune: true,
-            subFields: [{
-               name: 'entitySearch',
-               type: 'EntitySearch',
-               prune: false,
-               subFields: [{
-                  name: 'results',
-                  type: 'EntitySearchResult',
-                  prune: false,
-                  subFields: [{
-                     name: 'entities',
-                     type: 'EntityOutline',
-                     prune: false,
-                     subFields: [{
-                        name: 'dashboardEntityOutline',
-                        type: 'DashboardEntityOutline',
-                        prune: false,
-                        fragmentName: '... on DashboardEntityOutline'
-                     }]
-                  }]
-               }]
-            }]
-         }]
-      }]
+      if (!fs.existsSync(options.configFile)) {
+         console.error(`Configuration file is required! config file: ${options.configFile} not found. Exiting.`)
+         process.exit(1)
+      }
+      const buffer = fs.readFileSync(options.configFile, 'utf-8')
+      this.config = parse(buffer) as Config
+      if (!this.config) {
+         console.error(`Empty or invalid config file: ${options.configFile}. Exiting.`)
+         process.exit(1)
+      }
+
+      // Config file overrides
+      if (options.logLevel) {
+         this.config.logLevel = options.logLevel
+      }
+      if (options.licenseKey) {
+         this.config.licenseKey = options.licenseKey
+      }
+
+      // This must happen after config file loading
+      this.setupLogging()
+      this.loadSchema()
       this.config.emitters = this.getEmitters()
       logger.debug('Configuration', this.config)
+      //console.log(stringify(this.config))
    }
 
    public static getInstance(): Configuration {
@@ -112,32 +121,6 @@ export class Configuration {
 
    public getEntities(): EntityConfig[] {
       return this.config.entities
-   }
-
-
-   public substituteType(type: GraphQLType | GraphQLField<any, any>): GraphQLType | GraphQLField<any, any> {
-      if ('name' in type) {
-         // FIXME how do I know the entity?
-         if (type.name == 'Entity') {
-            const t = this.schema?.getType('')
-            if (t == undefined) {
-               logger.warn('', type.name)
-               return type
-            }
-            return t
-         }
-         if (type.name == 'EntityOutline') {
-            const t = this.schema?.getType('')
-            if (t == undefined) {
-               logger.warn('', type.name)
-               return type
-            }
-            return t
-         }
-         return type
-      } else {
-         return type
-      }
    }
 
    public getEmitters(): Emitter[] {
@@ -198,7 +181,7 @@ export class Configuration {
       )
       logger = createLogger({
          format: logFormat,
-         level: 'debug',
+         level: this.config.logLevel,
          transports: [new transports.Console()]
       })
 
