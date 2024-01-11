@@ -22,13 +22,18 @@ entities:
   - name: dashboards
     #
     # Create, Update, and Delete expect to be found as fields directly under RootMutationType
-    #
-    # Create mutation root name
-    create: dashboardCreate
-    # Update mutation root name
-    update: dashboardUpdate
-    # Delete mutation root name
-    delete: dashboardDelete
+    # Typically this is all you would configure for a mutation, however they use the same data structure as a query for flexibility
+    create:
+      # mutation name
+      - name: dashboardCreate
+        # mutation type
+        type: DashboardCreateResult
+    update:
+      - name: dashboardUpdate
+        type: DashboardUpdateResult
+    delete:
+      - name: dashboardDelete
+        type: DashboardDeleteResult
     #
     # Read and List are a bit more complex
     # Read and List are configured as an array of FieldConfig, however at the top level they must have a SINGLE ENTRY. This is strictly enforced.

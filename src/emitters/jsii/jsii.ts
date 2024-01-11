@@ -1,5 +1,5 @@
 import {Emitter} from "../emitter";
-import {GraphQLField, GraphQLType} from "graphql";
+import {GraphQLField, GraphQLInputField, GraphQLType} from "graphql";
 import {GraphQLEnumType, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLNonNull, GraphQLScalarType, GraphQLUnionType} from "graphql/type/definition";
 import {GraphQLList, GraphQLObjectType} from "graphql/index";
 import * as fs from "fs";
@@ -28,6 +28,8 @@ export class Jsii implements Emitter {
       NrdbResult: 'string',
       Seconds: 'string',
       NrdbRawResults: 'string',
+      SecureValue: 'string',
+      NaiveDateTime: 'string',
    }
 
    public constructor() {
@@ -37,15 +39,15 @@ export class Jsii implements Emitter {
       const stream = fs.createWriteStream(`./local/${entity.name}-types.ts`)
       this.header(stream)
 
-      for (const [name, field] of Object.entries(entity.mutations)) {
+      for (const [operation, field] of Object.entries(entity.mutations)) {
          if (field) {
-            this.mutationToGraphQLDoc(name, field, stream)
+            this.mutationToGraphQLDoc(entity.name, operation, field, stream)
          }
       }
 
-      for (const [name, field] of Object.entries(entity.queries)) {
+      for (const [operation, field] of Object.entries(entity.queries)) {
          if (field) {
-            this.queryToGraphQLDoc(name, field, stream)
+            this.queryToGraphQLDoc(entity.name, operation, field, stream)
          }
       }
 
@@ -57,15 +59,15 @@ export class Jsii implements Emitter {
       stream.close()
    }
 
-   private mutationToGraphQLDoc(name: string, v: GraphQLField<any, any>, stream: WriteStream) {
+   private mutationToGraphQLDoc(entityName: string, operation: string, field: GraphQLField<any, any>, stream: WriteStream) {
       const doc = new Document()
-      stream.write(doc.getMutation(name, v))
+      stream.write(doc.getMutation(entityName, operation, field))
    }
 
 
-   private queryToGraphQLDoc(name: string, v: GraphQLField<any, any>, stream: WriteStream) {
+   private queryToGraphQLDoc(entityName: string, operation: string, field: GraphQLField<any, any>, stream: WriteStream) {
       const doc = new Document()
-      stream.write(doc.getQuery(name, v))
+      stream.write(doc.getQuery(entityName, operation, field))
    }
 
    private typeToJsiiType(type: GraphQLType, stream: WriteStream) {
@@ -86,7 +88,7 @@ export class Jsii implements Emitter {
       } else if (type instanceof GraphQLList) {
          this.jsiiList(type, stream)
       } else {
-         logger.error("typeToJsiiType: Unknown type: ", type)
+         logger.warn("typeToJsiiType: Unknown type: ", type)
       }
    }
 
@@ -96,8 +98,8 @@ export class Jsii implements Emitter {
     */
    private jsiiScalar(type: GraphQLScalarType<any, any>, stream: WriteStream) {
       if (!(type.name in Jsii.Scalars)) {
-         logger.error("jsiiScalar: Unknown: jsiiScalar: scalar:", type)
-         const line = `// FIXME unknown scalar\nexport type ${type.name} = string\n`
+         logger.warn("jsiiScalar: Unknown: jsiiScalar: scalar:", type)
+         const line = `// jsii.jsiiScalar: FIXME unknown scalar: ${type.name}\nexport type ${type.name} = string\n`
          stream.write(line)
       }
    }
@@ -107,8 +109,10 @@ export class Jsii implements Emitter {
       const fields = type.getFields()
       for (const fieldName in fields) {
          const field = fields[fieldName]
-         const parsed = this.parseField(field.type)
-         line = line + `\t${fieldName}${parsed.required}: ${parsed.type}${parsed.array}\n`
+         if (!this.isDeprecated(field)) {
+            const parsed = this.parseField(field.type)
+            line = line + `\t${fieldName}${parsed.required}: ${parsed.type}${parsed.array}\n`
+         }
       }
       line = line + `}\n`
       stream.write(line)
@@ -119,11 +123,20 @@ export class Jsii implements Emitter {
       const fields = type.getFields()
       for (const fieldName in fields) {
          const field = fields[fieldName]
-         const parsed = this.parseField(field.type)
-         line = line + `\t${fieldName}${parsed.required}: ${parsed.type}${parsed.array}\n`
+         if (!this.isDeprecated(field)) {
+            const parsed = this.parseField(field.type)
+            line = line + `\t${fieldName}${parsed.required}: ${parsed.type}${parsed.array}\n`
+         }
       }
       line = line + `}\n`
       stream.write(line)
+   }
+
+   private isDeprecated(thing: GraphQLType | GraphQLField<any, any> | GraphQLInputField) {
+      if (('deprecationReason' in thing) && thing.deprecationReason != undefined) {
+         return true
+      }
+      return false
    }
 
    private jsiiUnion(type: GraphQLUnionType, stream: WriteStream) {
@@ -150,20 +163,22 @@ export class Jsii implements Emitter {
       const fields = type.getFields()
       for (const fieldName in fields) {
          const field = fields[fieldName]
-         const parsed = this.parseField(field.type)
-         line = line + `\t${fieldName}${parsed.required}: ${parsed.type}${parsed.array}\n`
+         if (!this.isDeprecated(field)) {
+            const parsed = this.parseField(field.type)
+            line = line + `\t${fieldName}${parsed.required}: ${parsed.type}${parsed.array}\n`
+         }
       }
       line = line + `}\n`
       stream.write(line)
    }
 
    private jsiiNonNull(type: GraphQLNonNull<GraphQLScalarType | GraphQLObjectType | GraphQLInterfaceType | GraphQLUnionType | GraphQLEnumType | GraphQLInputObjectType | GraphQLList<GraphQLType>>, stream: WriteStream) {
-      const line = `// FIXME GraphQLNonNull: ${type.ofType}\n`
+      const line = `// jsii.jsiiNonNull: FIXME GraphQLNonNull: ${type.ofType}\n`
       stream.write(line)
    }
 
    private jsiiList(type: GraphQLList<GraphQLType>, stream: WriteStream) {
-      const line = `// FIXME GraphQLList: ${type.ofType}\n`
+      const line = `// jsii.jsiiList: FIXME GraphQLList: ${type.ofType}\n`
       stream.write(line)
    }
 
@@ -172,6 +187,12 @@ export class Jsii implements Emitter {
       array: string,
       required: string
    } {
+      if (('name' in type) && (type.name == 'errors')) {
+         logger.debug(`jsii.parseField: errors ${type}`)
+      }
+      if (this.isDeprecated(type)) {
+         return value
+      }
       if (type instanceof GraphQLList) {
          value = this.parseField(type.ofType)
          value.array = '[]'
@@ -182,6 +203,10 @@ export class Jsii implements Emitter {
          return value
       }
       if (type instanceof GraphQLInterfaceType) {
+         value.type = `${type.name}`
+         return value
+      }
+      if (type instanceof GraphQLUnionType) {
          value.type = `${type.name}`
          return value
       }
@@ -204,11 +229,12 @@ export class Jsii implements Emitter {
       }
 
       // Fall-through case
-      value.type = `string // FIXME ${type}`
+      value.type = `string // jsii.parseField: FIXME ${type}`
       return value
    }
 
    private header(stream: WriteStream) {
+      stream.write('// Code generated by graphql-schema-to-jsii, changes will be undone by the next invocation. DO NOT EDIT.\n')
       stream.write('import {gql} from "graphql-request"\n\n')
       for (const key in Jsii.Scalars) {
          //stream.write(`export type ${key}\n`)

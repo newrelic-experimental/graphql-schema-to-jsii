@@ -13,9 +13,9 @@ import {parse} from "yaml";
 
 export type EntityConfig = {
    name: string
-   create?: string
-   update?: string
-   delete?: string
+   create?: FieldConfig[]
+   update?: FieldConfig[]
+   delete?: FieldConfig[]
    read?: FieldConfig[]
    list?: FieldConfig[]
 }

@@ -1,4 +1,4 @@
-import {argsToArgsConfig,} from "graphql/type/definition";
+import {argsToArgsConfig} from "graphql/type/definition";
 import {Configuration, EntityConfig, FieldConfig, logger} from "../config/configuration";
 import {
    GraphQLEnumType,
@@ -39,47 +39,83 @@ export class Entity {
       this.name = entityConfig.name
       this.mutations = {create: undefined, delete: undefined, update: undefined}
       this.queries = {read: undefined, list: undefined}
-      const mutations = this.config.schema?.getMutationType()
-      if (mutations) {
-         const mutationFields = mutations.getFields()
-         if (entityConfig.create) {
-            this.mutations.create = mutationFields[entityConfig.create]
-            this.splunk(mutationFields[entityConfig.create], this.types)
+      // const mutations = this.config.schema?.getMutationType()
+      // if (mutations) {
+      // const mutationFields = mutations.getFields()
+      // let field = this.getField(entityConfig.create)
+      if (entityConfig.create) {
+         const field = this.getField(entityConfig.create, this.config.schema?.getMutationType()?.getFields())
+         if (field) {
+            this.splunk(field, this.types)
+            this.mutations.create = field
          }
-         if (entityConfig.update) {
-            this.mutations.update = mutationFields[entityConfig.update]
-            this.splunk(mutationFields[entityConfig.update], this.types)
-         }
-         if (entityConfig.delete) {
-            this.mutations.delete = mutationFields[entityConfig.delete]
-            this.splunk(mutationFields[entityConfig.delete], this.types)
+         // this.mutations.create = mutationFields[entityConfig.create]
+         // this.splunk(mutationFields[entityConfig.create], this.types)
+      }
+      if (entityConfig.update) {
+         // this.mutations.update = mutationFields[entityConfig.update]
+         // this.splunk(mutationFields[entityConfig.update], this.types)
+         const field = this.getField(entityConfig.update, this.config.schema?.getMutationType()?.getFields())
+         if (field) {
+            this.splunk(field, this.types)
+            this.mutations.update = field
          }
       }
+      if (entityConfig.delete) {
+         // this.mutations.delete = mutationFields[entityConfig.delete]
+         // this.splunk(mutationFields[entityConfig.delete], this.types)
+         const field = this.getField(entityConfig.delete, this.config.schema?.getMutationType()?.getFields())
+         if (field) {
+            this.splunk(field, this.types)
+            this.mutations.delete = field
+         }
+      }
+      //}
 
       if (entityConfig.read) {
-         if (entityConfig.read.length != 1) {
-            throw new Error(`Top level query should only contain one field: ${entityConfig.read}`)
+         // if (entityConfig.read.length != 1) {
+         //    throw new Error(`Top level query should only contain one field: ${entityConfig.read}`)
+         // }
+         // const rootField = this.config.schema?.getQueryType()?.getFields()[entityConfig.read[0].name]
+         // if (!rootField) {
+         //    throw new Error(`Unable to find root query field: ${entityConfig.read[0]}`)
+         // }
+         // const field = this.buildField(rootField, entityConfig.read[0])
+         const field = this.getField(entityConfig.read, this.config.schema?.getQueryType()?.getFields())
+         if (field) {
+            this.splunk(field, this.types)
+            this.queries.read = field
          }
-         const rootField = this.config.schema?.getQueryType()?.getFields()[entityConfig.read[0].name]
-         if (!rootField) {
-            throw new Error(`Unable to find root query field: ${entityConfig.read[0]}`)
-         }
-         const field = this.buildField(rootField, entityConfig.read[0])
-         this.splunk(field, this.types)
-         this.queries.read = field
       }
       if (entityConfig.list) {
-         if (entityConfig.list.length != 1) {
-            throw new Error(`Top level query should only contain one field: ${entityConfig.list}`)
+         // if (entityConfig.list.length != 1) {
+         //    throw new Error(`Top level query should only contain one field: ${entityConfig.list}`)
+         // }
+         // const rootField = this.config.schema?.getQueryType()?.getFields()[entityConfig.list[0].name]
+         // if (!rootField) {
+         //    throw new Error(`Unable to find root query field: ${entityConfig.list[0]}`)
+         // }
+         // const field = this.buildField(rootField, entityConfig.list[0])
+         const field = this.getField(entityConfig.list, this.config.schema?.getQueryType()?.getFields())
+         if (field) {
+            this.splunk(field, this.types)
+            this.queries.list = field
          }
-         const rootField = this.config.schema?.getQueryType()?.getFields()[entityConfig.list[0].name]
-         if (!rootField) {
-            throw new Error(`Unable to find root query field: ${entityConfig.list[0]}`)
-         }
-         const field = this.buildField(rootField, entityConfig.list[0])
-         this.splunk(field, this.types)
-         this.queries.list = field
       }
+   }
+
+   private getField(field: FieldConfig[] | undefined, fieldMap: GraphQLFieldMap<any, any> | undefined): (GraphQLField<any, any> | undefined) {
+      if (field && fieldMap) {
+         if (field.length != 1) {
+            throw new Error(`Top level fieldConfig should only contain one field: ${field}`)
+         }
+         const rootField = fieldMap[field[0].name]
+         if (!rootField) {
+            throw new Error(`Unable to find root field: ${field[0].name}`)
+         }
+         return this.buildField(rootField, field[0])
+      }
+      return undefined
    }
 
    private splunk(type: GraphQLType | GraphQLField<any, any>, types: Map<string, GraphQLType>) {
@@ -190,11 +226,22 @@ export class Entity {
       }
    }
 
+
+   // @ts-ignore
+   private buildUnionType(originalType: GraphQLUnionType, fieldConfig: FieldConfig): GraphQLUnionType {
+      const typeConfig = originalType.toConfig()
+      // @ts-ignore
+      const originalTypes = originalType.getTypes()
+
+      const newType = new GraphQLUnionType(typeConfig)
+      return newType
+   }
+
    private buildObjectType(originalType: GraphQLObjectType, fieldConfig: FieldConfig): GraphQLObjectType {
       logger.debug(`buildObjectType: ${fieldConfig.name}`)
 
       // Build the field map for the new object
-      // BE VERY CAREFUL to mutation only typeConfig
+      // BE VERY CAREFUL to mutate only typeConfig
       const typeConfig = originalType.toConfig()
       const originalFieldMap = originalType.getFields()
       let newFieldMap: ObjMap<any> = {}
@@ -220,7 +267,7 @@ export class Entity {
 
       logger.debug(`buildInterfaceType: ${fieldConfig.name}`)
       // Build the field map for the new object
-      // BE VERY CAREFUL to mutation only typeConfig
+      // BE VERY CAREFUL to mutate only typeConfig
       const typeConfig = originalType.toConfig()
       const originalFieldMap = originalType.getFields()
       let newFieldMap: ObjMap<any> = {}
@@ -283,4 +330,5 @@ export class Entity {
       }
       return result
    }
+
 }

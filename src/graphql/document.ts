@@ -1,5 +1,4 @@
-import {GraphQLArgument, GraphQLEnumType, GraphQLField, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLOutputType, GraphQLScalarType, GraphQLType} from "graphql";
-import {GraphQLUnionType} from "graphql/type/definition";
+import {GraphQLArgument, GraphQLEnumType, GraphQLField, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLOutputType, GraphQLScalarType, GraphQLType, GraphQLUnionType} from "graphql";
 import {logger} from '../config/configuration'
 
 export class Document {
@@ -8,17 +7,17 @@ export class Document {
    public constructor() {
    }
 
-   public getMutation(name: string, mutation: GraphQLField<any, any>): string {
+   public getMutation(entityName: string, operation: string, mutation: GraphQLField<any, any>): string {
       // The "type" of a mutation is its result, so we don't want field variables here
       const body = this.splunk(mutation.type)
-      let value: string = this.header(name, mutation) + body
+      let value: string = this.mutationHeader(entityName, operation, mutation) + body
       value = value + this.footer(mutation)
       return value
    }
 
-   public getQuery(name: string, query: GraphQLField<any, any>): string {
+   public getQuery(entityName: string, operation: string, query: GraphQLField<any, any>): string {
       const body = this.splunk(query.type)
-      let value: string = this.queryHeader(name, query) + body
+      let value: string = this.queryHeader(entityName, operation, query) + body
       value = value + this.queryFooter(query)
       return value
    }
@@ -47,14 +46,14 @@ export class Document {
       }
 
       // Fall-through case
-      return `string // FIXME ${type}`
+      return `string // document.parseField: FIXME ${type}`
    }
 
    // Field variables are variable: $variableName
 
    // Document variables are $variableName: type
    private documentVariables(args: readonly GraphQLArgument[]): string {
-      // This is a bit wonky but it due to the ordering of the header output
+      // This is a bit wonky but it due to the ordering of the mutationHeader output
       args.forEach((v) => {
          this.variableMap.set(v.name, v)
       })
@@ -83,17 +82,21 @@ export class Document {
       return value
    }
 
-   private queryHeader(type: string, query: GraphQLField<any, any>) {
-      const name = query.name.slice(0, 1).toUpperCase() + query.name.slice(1)
-      let value = `export const ${type}${name} = gql \`\nquery ${name}`
+   private queryHeader(entityName: string, operation: string, query: GraphQLField<any, any>) {
+      //const name = query.name.slice(0, 1).toUpperCase() + query.name.slice(1)
+      //let value = `export const ${type}${name} = gql \`\nquery ${name}`
+      const name = operation[0].toUpperCase() + operation.slice(1) + entityName[0].toUpperCase() + entityName.slice(1)
+      let value = `export const ${name} = gql \`\nquery ${name}`
       value = `${value} ${this.documentVariables(query.args)}{`
       value = `${value}\n${query.name} ${this.fieldVariables(query.args)}`
       return value
    }
 
-   private header(type: string, mutation: GraphQLField<any, any>) {
-      const name = mutation.name.slice(0, 1).toUpperCase() + mutation.name.slice(1)
-      let value = `export const ${type}${name} = gql \`\nmutation ${name}`
+   private mutationHeader(entityName: string, operation: string, mutation: GraphQLField<any, any>) {
+      //const name = mutation.name.slice(0, 1).toUpperCase() + mutation.name.slice(1)
+      //let value = `export const ${type}${name} = gql \`\nmutation ${name}`
+      const name = operation[0].toUpperCase() + operation.slice(1) + entityName[0].toUpperCase() + entityName.slice(1)
+      let value = `export const ${name} = gql \`\nmutation ${name}`
       value = `${value} ${this.documentVariables(mutation.args)}{`
       value = `${value}\n${mutation.name} ${this.fieldVariables(mutation.args)}`
       return value
@@ -139,7 +142,11 @@ export class Document {
 
       } else if (type instanceof GraphQLUnionType) {
          type.getTypes().forEach((t) => {
-            value = this.splunk(t, value, depth)
+            const tvalue = this.splunk(t, '', depth)
+            if (tvalue.replace(/\s/g, '') != '{}') {
+               value = `${value}\n${depth}... on ${t.name} ${tvalue}`
+            }
+            //value = this.splunk(t, value, depth)
          })
          return value
 

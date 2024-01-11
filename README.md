@@ -77,10 +77,11 @@ npx tsc ; GSTJ_CONFIG=local/config.yml GSTJ_LOGLEVEL=debug  node index.js
 
 ### Defaults
 
-| key        | type   | default      |
-|------------|--------|--------------|
-| configFile | string | ./config.yml |
-| logLevel   | string | info         |
+| key        | type    | default      |
+|------------|---------|--------------|
+| configFile | string  | ./config.yml |
+| logLevel   | string  | info         |
+| prune      | boolean | false        |
 
 ## Helpful reading
 
@@ -89,6 +90,5 @@ npx tsc ; GSTJ_CONFIG=local/config.yml GSTJ_LOGLEVEL=debug  node index.js
 
 ## To do
 
-- Normalize Create, Update, Delete, Read, and List operation names via configuration
 - Generate a skeleton config file from the schema (?)
 - Extend the `emitter` concept

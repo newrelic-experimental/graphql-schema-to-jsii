@@ -1,0 +1,293 @@
+useCached: true
+schemaFile: ./schema.gql
+logLevel: debug
+entities:
+  - name: aiNotificationsChannel
+    create:
+      - name: aiNotificationsCreateChannel
+        type: AiNotificationsChannelResponse
+        prune: false
+    update:
+      - name: aiNotificationsUpdateChannel
+        type: AiNotificationsChannelResponse
+        prune: false
+    delete:
+      - name: aiNotificationsDeleteChannel
+        type: AiNotificationsDeleteResponse
+        prune: false
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: aiNotifications
+                type: AiNotificationsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: channels
+                    type: AiNotificationsChannelsResponse
+                    prune: false
+  - name: aiNotificationsDestination
+    create:
+      - name: aiNotificationsCreateDestination
+        type: AiNotificationsDestinationResponse
+        prune: false
+    update:
+      - name: aiNotificationsUpdateDestination
+        type: AiNotificationsDestinationResponse
+        prune: false
+    delete:
+      - name: aiNotificationsDeleteDestination
+        type: AiNotificationsDeleteResponse
+        prune: false
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: aiNotifications
+                type: AiNotificationsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: destinations
+                    type: AiNotificationsDestinationsResponse
+                    prune: false
+  - name: aiWorkflows
+    create:
+      - name: aiWorkflowsCreateWorkflow
+        type: AiWorkflowsCreateWorkflowResponse
+        prune: false
+    update:
+      - name: aiWorkflowsUpdateWorkflow
+        type: AiWorkflowsUpdateWorkflowResponse
+        prune: false
+    delete:
+      - name: aiWorkflowsDeleteWorkflow
+        type: AiWorkflowsDeleteWorkflowResponse
+        prune: false
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: aiWorkflows
+                type: AiWorkflowsAccountStitchedFields
+                prune: false
+  - name: alertsMutingRule
+    create:
+      - name: alertsMutingRuleCreate
+        type: AlertsMutingRule
+    update:
+      - name: alertsMutingRuleUpdate
+        type: AlertsMutingRule
+    delete:
+      - name: alertsMutingRuleDelete
+        type: AlertsMutingRuleDeleteResponse
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: mutingRule
+                    type: AlertsMutingRule
+    list:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: mutingRules
+                    type: AlertsMutingRule
+  - name: alertsNrqlConditionBaseline
+    create:
+      - name: alertsNrqlConditionBaselineCreate
+        type: AlertsNrqlBaselineCondition
+    update:
+      - name: alertsNrqlConditionBaselineUpdate
+        type: AlertsNrqlBaselineCondition
+    delete:
+      - name: alertsConditionDelete
+        type: AlertsConditionDeleteResponse
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: nrqlCondition
+                    type: AlertsNrqlCondition
+    list:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: nrqlConditionsSearch
+                    type: AlertsNrqlConditionsSearchResultSet
+  - name: alertsNrqlConditionStatic
+    create:
+      - name: alertsNrqlConditionStaticCreate
+        type: AlertsNrqlStaticCondition
+    update:
+      - name: alertsNrqlConditionStaticUpdate
+        type: AlertsNrqlStaticCondition
+    delete:
+      - name: alertsConditionDelete
+        type: AlertsConditionDeleteResponse
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: nrqlCondition
+                    type: AlertsNrqlCondition
+    list:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: nrqlConditionsSearch
+                    type: AlertsNrqlConditionsSearchResultSet
+
+  - name: alertsPolicy
+    create:
+      - name: alertsPolicyCreate
+        type: AlertsPolicy
+    update:
+      - name: alertsPolicyUpdate
+        type: AlertsPolicy
+    delete:
+      - name: alertsPolicyDelete
+        type: AlertsPolicyDeleteResponse
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: policy
+                    type: AlertsPolicy
+    list:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: account
+            type: Account
+            prune: true
+            subFields:
+              - name: alerts
+                type: AlertsAccountStitchedFields
+                prune: true
+                subFields:
+                  - name: policiesSearch
+                    type: AlertsPoliciesSearchResultSet
+
+  - name: workloads
+    create:
+      - name: workloadCreate
+        type: WorkloadCollection
+    update:
+      - name: workloadUpdate
+        type: WorkloadCollection
+    delete:
+      - name: workloadDelete
+        type: WorkloadCollection
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: entity
+            type: Entity
+            prune: false
+            subFields:
+              - name: workloadEntity
+                type: WorkloadEntity
+                prune: false
+                fragmentName: ... on WorkloadEntity
+    list:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: entitySearch
+            type: EntitySearch
+            prune: false
+            subFields:
+              - name: results
+                type: EntitySearchResult
+                prune: false
+                subFields:
+                  - name: entities
+                    type: EntityOutline
+                    prune: false
+                    subFields:
+                      - name: workloadEntityOutline
+                        type: WorkloadEntityOutline
+                        prune: false
+                        fragmentName: ... on WorkloadEntityOutline

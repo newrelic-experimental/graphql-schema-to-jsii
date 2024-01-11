@@ -1,0 +1,51 @@
+useCached: true
+schemaFile: ./schema.gql
+logLevel: debug
+entities:
+  - name: dashboards
+    create:
+      - name: dashboardCreate
+        type: DashboardCreateResult
+        prune: false
+    update:
+      - name: dashboardUpdate
+        type: DashboardUpdateResult
+        prune: false
+    delete:
+      - name: dashboardDelete
+        type: DashboardDeleteResult
+        prune: false
+    read:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: entity
+            type: Entity
+            prune: false
+            subFields:
+              - name: dashboardEntity
+                type: DashboardEntity
+                prune: false
+                fragmentName: ... on DashboardEntity
+    list:
+      - name: actor
+        type: Actor
+        prune: true
+        subFields:
+          - name: entitySearch
+            type: EntitySearch
+            prune: false
+            subFields:
+              - name: results
+                type: EntitySearchResult
+                prune: false
+                subFields:
+                  - name: entities
+                    type: EntityOutline
+                    prune: false
+                    subFields:
+                      - name: dashboardEntityOutline
+                        type: DashboardEntityOutline
+                        prune: false
+                        fragmentName: ... on DashboardEntityOutline
