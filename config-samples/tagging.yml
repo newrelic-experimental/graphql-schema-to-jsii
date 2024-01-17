@@ -1,0 +1,59 @@
+# Configuration file for NewRelic's tagging GraphQL API
+
+# options are not required, omit to use defaults
+options:
+  # Set the logLevel to info
+  - logLevel: info
+    # Use the cached GraphQL schema at ./schema.gql
+    useCached: true
+# entity definitions, multiple entities in a single configuraiton file are supported
+entities:
+  # entity name controls the output filename prefix and the generated codes' suffix. This is a logical grouping and is not related to the schema
+  - name: tagging
+    # The GraphQL mutations to generate
+    mutations:
+      # Each mutation is labeled, the label provides the gql object's prefix and allows for normalizing the output
+      create:
+        # The mutation's name as found in the RootMutationType's fields
+        - name: taggingAddTagsToEntity
+          # The GraphQL type of the field
+          type: TaggingMutationResult
+      update:
+        - name: taggingReplaceTagsOnEntity
+          type: TaggingMutationResult
+      delete:
+        - name: taggingDeleteTagFromEntity
+          type: TaggingMutationResult
+      taggingDeleteTagValuesFromEntity:
+        - name: taggingDeleteTagValuesFromEntity
+          type: TaggingMutationResult
+    # The GraphQL queries to generate
+    queries:
+      # Each query is labeled, the label provides the gql object's prefix and allows for normalizing the output
+      read:
+        # The queries' name as found in the RootQueryType's fields
+        - name: actor
+          # The GraphQL type of the field
+          type: Actor
+          # Prune the type's fields, only provide the specified subfields.
+          prune: true
+          subFields:
+            - name: entity
+              type: Entity
+              prune: false
+      list:
+        - name: actor
+          type: Actor
+          prune: true
+          subFields:
+            - name: entitySearch
+              type: EntitySearch
+              prune: false
+              subFields:
+                - name: results
+                  type: EntitySearchResult
+                  prune: false
+                  subFields:
+                    - name: entities
+                      type: EntityOutline
+                      prune: false

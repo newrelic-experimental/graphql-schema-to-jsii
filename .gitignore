@@ -1,4 +1,5 @@
 .idea
+generated
 local
 node_modules
 **/*.log

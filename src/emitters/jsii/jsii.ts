@@ -32,11 +32,15 @@ export class Jsii implements Emitter {
       NaiveDateTime: 'string',
    }
 
-   public constructor() {
+   outputDir: string
+
+   public constructor(outputDir: string) {
+      this.outputDir = outputDir
    }
 
    public emit(entity: Entity): void {
-      const stream = fs.createWriteStream(`./local/${entity.name}-types.ts`)
+      // TODO output directory from configuration
+      const stream = fs.createWriteStream(`${this.outputDir}/${entity.name}-types.ts`)
       this.header(stream)
 
       for (const [operation, field] of Object.entries(entity.mutations)) {

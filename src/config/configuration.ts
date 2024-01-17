@@ -8,16 +8,26 @@ import {createLogger, format, Logger, transports,} from 'winston';
 import {buildClientSchema, buildSchema, getIntrospectionQuery, IntrospectionQuery, printSchema} from "graphql";
 import {GraphQLClient} from "graphql-request";
 import {Command} from "commander";
-import {parse} from "yaml";
+import {parse, stringify} from "yaml";
+import {existsSync, mkdirSync} from "node:fs";
 
-
-export type EntityConfig = {
-   name: string
+export type EntityMutations = Record<string, FieldConfig[]> & {
    create?: FieldConfig[]
    update?: FieldConfig[]
    delete?: FieldConfig[]
+}
+
+export type EntityQueries = Record<string, FieldConfig[]> & {
    read?: FieldConfig[]
    list?: FieldConfig[]
+}
+
+// This bit if magic (the &) lets us dynamically add fields to the EntityConfig that are of type FieldConfig[]
+// This lets us add mutations that don't fit into the CRUDL notion, dashboardAddWidgetsToPage for instance
+export type EntityConfig = Record<string, FieldConfig[]> & {
+   name: string
+   mutations?: EntityMutations
+   queries?: EntityQueries
 }
 
 export type FieldConfig = {
@@ -28,88 +38,121 @@ export type FieldConfig = {
    subFields?: FieldConfig[]
 }
 
+
+export type Options = Record<string, any> & {
+   useCached: boolean
+   saveSchema: boolean
+   schemaFile: string
+   schemaUrl: string
+   licenseKey: string
+   logLevel: string
+   outputDir: string
+}
+
+const defaultOptions: Options = {
+   licenseKey: '',
+   logLevel: 'info',
+   outputDir: './generated/',
+   saveSchema: false,
+   schemaFile: './schema.gql',
+   schemaUrl: 'https://api.newrelic.com/graphql',
+   useCached: true,
+}
+
 class Config {
-   useCached: boolean = true
-   saveSchema: boolean = true
-   schemaFile: string = './schema.gql'
-   schemaUrl: string = 'https://api.newrelic.com/graphql'
-   licenseKey: string = ''
-   logLevel: string = 'info'
+   options: Options = defaultOptions
    entities: EntityConfig[] = []
    emitters: Emitter[] = []
 }
 
 export class Configuration {
-
    private static instance: Configuration
    public schema?: GraphQLSchema
+
    private readonly config: Config
 
    private constructor() {
+      // DIRE WARNING- this all works because the Option names are CONSISTENT
 
-      // Let comannderjs handle the command line https://github.com/tj/commander.js
-      const program = new Command()
-      program
+      // Setup the configFile's name
+      // Default
+      let configFile = './config.yml'
+      // envvar override
+      if (process.env.GSTJ_CONFIGFILE) {
+         configFile = process.env.GSTJ_CONFIGFILE
+         configFile = process.env.GSTJ_CONFIGFILE
+      }
+
+      // Load command line, this is "early" in precedence but we need the configFile setting https://github.com/tj/commander.js
+      const commandLine = new Command()
+      commandLine
          .option('-c, --configFile <string>', 'path to yaml configuration file')
          .option('-l, --logLevel <string>', 'logging level')
          .option('-k, --licenseKey <string>', 'Introspection license key')
-
+         .option('-o, --outputDir <string>', 'Output directory')
       // Don't fail when running jest
-      program.exitOverride()
+      commandLine.exitOverride()
       try {
-         program.parse(process.argv)
+         commandLine.parse(process.argv)
       } catch (err) {
       }
-      const options = program.opts()
+      const commandLineOptions = commandLine.opts()
 
-      // Try envvars if no command line options
-      const envConfig = process.env['GSTJ_CONFIG']
-      if (!options.configFile) {
-         if (!envConfig) {
-            options.configFile = './config.yml'
-         } else {
-            options.configFile = envConfig
-         }
-      }
-      const envLogLevel = process.env['GSTJ_LOGLEVEL']
-      if (!options.logLevel) {
-         if (envLogLevel) {
-            options.logLevel = envLogLevel
-         }
-      }
-      const envLicenseKey = process.env['GSTJ_LICENSEKEY']
-      if (!options.licenseKey) {
-         if (envLicenseKey) {
-            options.licenseKey = envLicenseKey
-         }
+      // configFile override from command line
+      if (commandLineOptions.configFile) {
+         configFile = commandLineOptions.configFile
       }
 
-      // Process config file
-      if (!fs.existsSync(options.configFile)) {
-         console.error(`Configuration file is required! config file: ${options.configFile} not found. Exiting.`)
+      // Load config file
+      if (!fs.existsSync(configFile)) {
+         console.error(`Configuration file is required! config file: ${configFile} not found. Exiting.`)
          process.exit(1)
       }
-      const buffer = fs.readFileSync(options.configFile, 'utf-8')
+      const buffer = fs.readFileSync(configFile, 'utf-8')
       this.config = parse(buffer) as Config
       if (!this.config) {
-         console.error(`Empty or invalid config file: ${options.configFile}. Exiting.`)
+         console.error(`Empty or invalid config file: ${configFile}. Exiting.`)
          process.exit(1)
       }
-
-      // Config file overrides
-      if (options.logLevel) {
-         this.config.logLevel = options.logLevel
-      }
-      if (options.licenseKey) {
-         this.config.licenseKey = options.licenseKey
+      // If the user has an an empty Options provide one from the defaults
+      if (!this.config.options) {
+         this.config.options = defaultOptions
       }
 
-      // This must happen after config file loading
+      // Default any missing config file options
+      const optionKeys = Object.getOwnPropertyNames(defaultOptions)
+      for (const optionKey of optionKeys) {
+         if (optionKey in this.config.options && this.config.options[optionKey]) {
+            continue
+         } else {
+            this.config.options[optionKey] = defaultOptions[optionKey]
+         }
+      }
+
+      // Override from envvars
+      for (const optionKey of optionKeys) {
+         const envOption = process.env['GSTJ_' + optionKey.toUpperCase()]
+         if (envOption) {
+            this.config.options[optionKey] = envOption
+         }
+      }
+
+      // Override from command line
+      for (const optionKey of optionKeys) {
+         if (commandLineOptions[optionKey]) {
+            this.config.options[optionKey] = commandLineOptions[optionKey]
+         }
+      }
+
+      // This must happen last
       this.setupLogging()
       this.loadSchema()
+      if (!existsSync(this.config.options.outputDir)) {
+         mkdirSync(this.config.options.outputDir)
+      }
       this.config.emitters = this.getEmitters()
       logger.debug('Configuration', this.config)
-      //console.log(stringify(this.config))
+      console.log(stringify(this.config))
    }
 
    public static getInstance(): Configuration {
@@ -138,34 +181,34 @@ export class Configuration {
       //
       // })()
       // return emitters
-      return [new Jsii()]
+      return [new Jsii(this.config.options.outputDir)]
    }
 
    private async loadSchema() {
-      if (this.config.useCached) {
+      if (this.config.options.useCached) {
          // Load the Schema from a file
-         if (this.config.schemaFile) {
-            const buffer = fs.readFileSync(this.config.schemaFile, 'utf-8')
+         if (this.config.options.schemaFile) {
+            const buffer = fs.readFileSync(this.config.options.schemaFile, 'utf-8')
             this.schema = buildSchema(buffer)
          } else {
-            throw new Error(`config: unable to load schema from file: ${this.config.schemaFile}`)
+            throw new Error(`config: unable to load schema from file: ${this.config.options.schemaFile}`)
          }
       } else {
          // Load the Schema from the endpoint
-         const endpoint: string = this.config.schemaUrl
+         const endpoint: string = this.config.options.schemaUrl
          let client: GraphQLClient
          client = new GraphQLClient(endpoint, {
             headers: {
                'user-agent': 'JS GraphQL',
                'Content-Type': 'application/json',
-               'API-Key': this.config.licenseKey
+               'API-Key': this.config.options.licenseKey
             },
          },)
 
          const query: IntrospectionQuery = await client.request(getIntrospectionQuery())
          this.schema = buildClientSchema(query)
-         if (this.config.saveSchema) {
-            const outputFile = path.join(__dirname, this.config.schemaFile)
+         if (this.config.options.saveSchema) {
+            const outputFile = path.join(__dirname, this.config.options.schemaFile)
             await fs.promises.writeFile(outputFile, printSchema(this.schema))
          }
       }
@@ -181,7 +224,7 @@ export class Configuration {
       )
       logger = createLogger({
          format: logFormat,
-         level: this.config.logLevel,
+         level: this.config.options.logLevel,
          transports: [new transports.Console()]
       })
 

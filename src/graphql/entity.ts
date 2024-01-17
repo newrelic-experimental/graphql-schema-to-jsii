@@ -18,12 +18,12 @@ import {
 } from "graphql";
 import {ObjMap} from "graphql/jsutils/ObjMap";
 
-export type Mutations = {
+export type Mutations = Record<string, GraphQLField<any, any> | undefined> & {
    create: GraphQLField<any, any> | undefined
    update: GraphQLField<any, any> | undefined
    delete: GraphQLField<any, any> | undefined
 }
-export type Queries = {
+export type Queries = Record<string, GraphQLField<any, any> | undefined> & {
    read: GraphQLField<any, any> | undefined
    list: GraphQLField<any, any> | undefined
 }
@@ -39,67 +39,28 @@ export class Entity {
       this.name = entityConfig.name
       this.mutations = {create: undefined, delete: undefined, update: undefined}
       this.queries = {read: undefined, list: undefined}
-      // const mutations = this.config.schema?.getMutationType()
-      // if (mutations) {
-      // const mutationFields = mutations.getFields()
-      // let field = this.getField(entityConfig.create)
-      if (entityConfig.create) {
-         const field = this.getField(entityConfig.create, this.config.schema?.getMutationType()?.getFields())
-         if (field) {
-            this.splunk(field, this.types)
-            this.mutations.create = field
-         }
-         // this.mutations.create = mutationFields[entityConfig.create]
-         // this.splunk(mutationFields[entityConfig.create], this.types)
-      }
-      if (entityConfig.update) {
-         // this.mutations.update = mutationFields[entityConfig.update]
-         // this.splunk(mutationFields[entityConfig.update], this.types)
-         const field = this.getField(entityConfig.update, this.config.schema?.getMutationType()?.getFields())
-         if (field) {
-            this.splunk(field, this.types)
-            this.mutations.update = field
-         }
-      }
-      if (entityConfig.delete) {
-         // this.mutations.delete = mutationFields[entityConfig.delete]
-         // this.splunk(mutationFields[entityConfig.delete], this.types)
-         const field = this.getField(entityConfig.delete, this.config.schema?.getMutationType()?.getFields())
-         if (field) {
-            this.splunk(field, this.types)
-            this.mutations.delete = field
-         }
-      }
-      //}
 
-      if (entityConfig.read) {
-         // if (entityConfig.read.length != 1) {
-         //    throw new Error(`Top level query should only contain one field: ${entityConfig.read}`)
-         // }
-         // const rootField = this.config.schema?.getQueryType()?.getFields()[entityConfig.read[0].name]
-         // if (!rootField) {
-         //    throw new Error(`Unable to find root query field: ${entityConfig.read[0]}`)
-         // }
-         // const field = this.buildField(rootField, entityConfig.read[0])
-         const field = this.getField(entityConfig.read, this.config.schema?.getQueryType()?.getFields())
-         if (field) {
-            this.splunk(field, this.types)
-            this.queries.read = field
+      if (entityConfig.mutations) {
+         for (const key of Object.getOwnPropertyNames(entityConfig.mutations)) {
+            if (entityConfig.mutations [key]) {
+               const field = this.getField(entityConfig.mutations[key], this.config.schema?.getMutationType()?.getFields())
+               if (field) {
+                  this.splunk(field, this.types)
+                  this.mutations[key] = field
+               }
+            }
          }
       }
-      if (entityConfig.list) {
-         // if (entityConfig.list.length != 1) {
-         //    throw new Error(`Top level query should only contain one field: ${entityConfig.list}`)
-         // }
-         // const rootField = this.config.schema?.getQueryType()?.getFields()[entityConfig.list[0].name]
-         // if (!rootField) {
-         //    throw new Error(`Unable to find root query field: ${entityConfig.list[0]}`)
-         // }
-         // const field = this.buildField(rootField, entityConfig.list[0])
-         const field = this.getField(entityConfig.list, this.config.schema?.getQueryType()?.getFields())
-         if (field) {
-            this.splunk(field, this.types)
-            this.queries.list = field
+
+      if (entityConfig.queries) {
+         for (const key of Object.getOwnPropertyNames(entityConfig.queries)) {
+            if (entityConfig.queries [key]) {
+               const field = this.getField(entityConfig.queries[key], this.config.schema?.getQueryType()?.getFields())
+               if (field) {
+                  this.splunk(field, this.types)
+                  this.queries[key] = field
+               }
+            }
          }
       }
    }
@@ -224,17 +185,6 @@ export class Entity {
       } else {
          throw new Error(`Type has no fields: ${originalType}`)
       }
-   }
-
-
-   // @ts-ignore
-   private buildUnionType(originalType: GraphQLUnionType, fieldConfig: FieldConfig): GraphQLUnionType {
-      const typeConfig = originalType.toConfig()
-      // @ts-ignore
-      const originalTypes = originalType.getTypes()
-
-      const newType = new GraphQLUnionType(typeConfig)
-      return newType
    }
 
    private buildObjectType(originalType: GraphQLObjectType, fieldConfig: FieldConfig): GraphQLObjectType {
