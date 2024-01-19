@@ -8,7 +8,7 @@ import {createLogger, format, Logger, transports,} from 'winston';
 import {buildClientSchema, buildSchema, getIntrospectionQuery, IntrospectionQuery, printSchema} from "graphql";
 import {GraphQLClient} from "graphql-request";
 import {Command} from "commander";
-import {parse, stringify} from "yaml";
+import {parse} from "yaml";
 import {existsSync, mkdirSync} from "node:fs";
 
 export type EntityMutations = Record<string, FieldConfig[]> & {
@@ -60,9 +60,9 @@ const defaultOptions: Options = {
 }
 
 class Config {
-   options: Options = defaultOptions
-   entities: EntityConfig[] = []
    emitters: Emitter[] = []
+   entities: EntityConfig[] = []
+   options: Options = defaultOptions
 }
 
 export class Configuration {
@@ -123,7 +123,7 @@ export class Configuration {
       const optionKeys = Object.getOwnPropertyNames(defaultOptions)
       for (const optionKey of optionKeys) {
          if (optionKey in this.config.options && this.config.options[optionKey]) {
-            continue
+
          } else {
             this.config.options[optionKey] = defaultOptions[optionKey]
          }
@@ -152,7 +152,8 @@ export class Configuration {
       }
       this.config.emitters = this.getEmitters()
       logger.debug('Configuration', this.config)
-      console.log(stringify(this.config))
+      // TODO make this a config option
+      // console.log(stringify(this.config))
    }
 
    public static getInstance(): Configuration {
@@ -160,10 +161,6 @@ export class Configuration {
          Configuration.instance = new Configuration()
       }
       return Configuration.instance
-   }
-
-   public getEntities(): EntityConfig[] {
-      return this.config.entities
    }
 
    public getEmitters(): Emitter[] {
@@ -182,6 +179,14 @@ export class Configuration {
       // })()
       // return emitters
       return [new Jsii(this.config.options.outputDir)]
+   }
+
+   public getEntities(): EntityConfig[] {
+      return this.config.entities
+   }
+
+   public getOutputDirectory(): string {
+      return this.config.options.outputDir
    }
 
    private async loadSchema() {

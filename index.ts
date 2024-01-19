@@ -1,5 +1,5 @@
 import {Configuration} from './src/config/configuration'
-import {Entity} from './src/graphql/entity'
+import {Entity} from './src/model/entity'
 import {logger} from "bs-logger";
 
 const config = Configuration.getInstance()

@@ -44,15 +44,15 @@ Path and name of the yaml configuration file. Relative paths are ok
 
 ### Options
 
-| ! Option (yaml) | Default                          | Description                                  | Command line | envvar          |
-|-----------------|----------------------------------|----------------------------------------------|--------------|-----------------|
-| licenseKey      |                                  | GraphQL introspection endpoint license key   | --licenseKey | GSTJ_LICENSEKEY |
-| logLevel        | info                             | error, warn, info, verbose, debug            | --logLevel   | GSTJ_LOGLEVEL   |
-| outputDir       | ./generated/                     | Output directory                             | --outputDir  | GSTJ_OUTPUTDIR  |
-| saveSchema      | false                            | Whether or not to save the GraphQL schema    | --saveSchema | GSTJ_SAVESCHEMA |
-| schemaFile      | ./schema.gql                     | Name and location of GraphQL schema file     | --schemaFile | GSTJ_SCHEMAFILE |
-| schemaUrl       | https://api.newrelic.com/graphql | GraphQL introspection endpoint               | --schemaUrl  | GSTJ_SCHEMAURL  |
-| useCached       | true                             | Skip introspection and use saved schema file | --useCached  | GSTJ_USECACHED  |
+| Option (yaml) | Default                          | Description                                  | Command line | envvar          |
+|---------------|----------------------------------|----------------------------------------------|--------------|-----------------|
+| licenseKey    |                                  | GraphQL introspection endpoint license key   | --licenseKey | GSTJ_LICENSEKEY |
+| logLevel      | info                             | error, warn, info, verbose, debug            | --logLevel   | GSTJ_LOGLEVEL   |
+| outputDir     | ./generated/                     | Output directory                             | --outputDir  | GSTJ_OUTPUTDIR  |
+| saveSchema    | false                            | Whether or not to save the GraphQL schema    | --saveSchema | GSTJ_SAVESCHEMA |
+| schemaFile    | ./schema.gql                     | Name and location of GraphQL schema file     | --schemaFile | GSTJ_SCHEMAFILE |
+| schemaUrl     | https://api.newrelic.com/graphql | GraphQL introspection endpoint               | --schemaUrl  | GSTJ_SCHEMAURL  |
+| useCached     | true                             | Skip introspection and use saved schema file | --useCached  | GSTJ_USECACHED  |
 
 Command line example:
 
@@ -63,7 +63,7 @@ npx tsc ; node index.js --configFile local/config.yml --logLevel debug
 envvar example:
 
 ```bash
-npx tsc ; GSTJ_CONFIG=local/config.yml GSTJ_LOGLEVEL=debug  node index.js 
+npx tsc ; GSTJ_CONFIGFILE=local/config.yml GSTJ_LOGLEVEL=debug  node index.js 
 ```
 
 ### Mutation and Query configuration
@@ -149,10 +149,7 @@ Each configured entity results in a file `./local/<entity>-types.ts` that contai
 
 ## To do
 
+- Everything should get its own file in an `entity` subfolder of `outputDir`. (types, docs, clients, ...)
 - Generate a skeleton config file from the schema (?)
 - Extend the `emitter` concept
     - Emit a working `Construct`
-- Output directory from configuration
-- Allow `EntityConfig` to be dynamically extended with new operations of `FieldConfig[]` so we can deal with mutations that don't fit into CRUDL- `taggingDeleteTagValuesFromEntity` or `aiNotificationsTestDestination` for instance
-    - Generalize mutation operations to get away from strict `create`, `update`, and `delete`
-    - It might be helpful here to separate queries (`read` and `list` ) from mutations
