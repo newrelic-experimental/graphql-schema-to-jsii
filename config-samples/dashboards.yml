@@ -1,6 +1,7 @@
-useCached: true
-schemaFile: ./schema.gql
-logLevel: debug
+options:
+  useCached: false
+  schemaFile: ./schema.gql
+  logLevel: debug
 entities:
   - name: dashboards
     mutations:
@@ -21,6 +22,7 @@ entities:
         - name: actor
           type: Actor
           prune: true
+          alias: ReadDashboardResult
           subFields:
             - name: entity
               type: Entity
@@ -34,6 +36,7 @@ entities:
         - name: actor
           type: Actor
           prune: true
+          alias: ListDashboardResult
           subFields:
             - name: entitySearch
               type: EntitySearch

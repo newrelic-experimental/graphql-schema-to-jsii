@@ -1,20 +1,8 @@
 import {argsToArgsConfig} from "graphql/type/definition";
 import {Configuration, EntityConfig, FieldConfig, logger} from "../config/configuration";
 import {
-   GraphQLEnumType,
-   GraphQLField,
-   GraphQLFieldMap,
-   GraphQLInputFieldMap,
-   GraphQLInputObjectType,
-   GraphQLInterfaceType,
-   GraphQLList,
-   GraphQLNonNull,
-   GraphQLObjectType,
-   GraphQLScalarType,
-   GraphQLType,
-   GraphQLUnionType,
-   isInterfaceType,
-   isObjectType,
+   GraphQLEnumType, GraphQLField, GraphQLFieldMap, GraphQLInputField, GraphQLInputFieldMap, GraphQLInputObjectType, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLScalarType, GraphQLType, GraphQLUnionType,
+   isInterfaceType, isObjectType,
 } from "graphql";
 import {ObjMap} from "graphql/jsutils/ObjMap";
 import {Mutation} from "./mutation";
@@ -59,6 +47,7 @@ export class Entity {
       if (entityConfig.queries) {
          for (const operation of Object.getOwnPropertyNames(entityConfig.queries)) {
             if (entityConfig.queries [operation]) {
+               // FIXME queries need a top level "data": wrapper
                const field = this.getField(entityConfig.queries[operation], this.config.schema?.getQueryType()?.getFields())
                if (field) {
                   this.splunk(field, this.types)
@@ -81,6 +70,10 @@ export class Entity {
          // @ts-ignore
          extension['FRAGMENTNAME'] = fieldConfig.fragmentName
       }
+      if (fieldConfig.alias) {
+         // @ts-ignore
+         extension['ALIAS'] = fieldConfig.alias
+      }
       let result = {}
       if (graphQLField) {
          for (const [k, v] of Object.entries(graphQLField.extensions)) {
@@ -88,27 +81,27 @@ export class Entity {
             extension[k] = v
          }
          result = {
-            name: graphQLField.name,
-            description: graphQLField.description,
-            type: type,
-            args: argsToArgsConfig(graphQLField.args),
-            resolve: graphQLField.resolve,
-            subscribe: graphQLField.subscribe,
+            name:              graphQLField.name,
+            description:       graphQLField.description,
+            type:              type,
+            args:              argsToArgsConfig(graphQLField.args),
+            resolve:           graphQLField.resolve,
+            subscribe:         graphQLField.subscribe,
             deprecationReason: graphQLField.deprecationReason,
-            extensions: extension,
-            astNode: graphQLField.astNode,
+            extensions:        extension,
+            astNode:           graphQLField.astNode,
          }
       } else {
          result = {
-            name: type.name,
-            description: undefined,
-            type: type,
-            args: {},
-            resolve: undefined,
-            subscribe: undefined,
+            name:              type.name,
+            description:       undefined,
+            type:              type,
+            args:              {},
+            resolve:           undefined,
+            subscribe:         undefined,
             deprecationReason: undefined,
-            extensions: extension,
-            astNode: undefined,
+            extensions:        extension,
+            astNode:           undefined,
 
          }
       }
@@ -116,24 +109,28 @@ export class Entity {
    }
 
    private buildField(originalField: GraphQLField<any, any>, fieldConfig: FieldConfig): GraphQLField<any, any> {
-      logger.debug(`buildField: ${fieldConfig.name}`)
+      //logger.debug(`buildField: ${fieldConfig.name}`)
+      let extensions = {}
+      if (fieldConfig.alias) {
+         // @ts-ignore
+         extensions['ALIAS'] = fieldConfig.alias
+      }
       const field: GraphQLField<any, any> = {
-         name: originalField.name,
-         description: originalField.description,
-         type: this.buildType(fieldConfig),
-         args: originalField.args,
-         resolve: originalField.resolve,
-         subscribe: originalField.subscribe,
+         name:              originalField.name,
+         description:       originalField.description,
+         type:              this.buildType(fieldConfig),
+         args:              originalField.args,
+         resolve:           originalField.resolve,
+         subscribe:         originalField.subscribe,
          deprecationReason: originalField.deprecationReason,
-         extensions: originalField.extensions,
-         astNode: originalField.astNode,
+         extensions:        extensions,
+         astNode:           originalField.astNode,
       }
       return field
    }
 
    private buildInterfaceType(originalType: GraphQLInterfaceType, fieldConfig: FieldConfig): GraphQLInterfaceType {
-
-      logger.debug(`buildInterfaceType: ${fieldConfig.name}`)
+      //logger.debug(`buildInterfaceType: ${fieldConfig.name}`)
       // Build the field map for the new object
       // BE VERY CAREFUL to mutate only typeConfig
       const typeConfig = originalType.toConfig()
@@ -144,6 +141,11 @@ export class Entity {
          newFieldMap = typeConfig.fields
       }
 
+      if (fieldConfig.alias) {
+         typeConfig.name = fieldConfig.alias
+         // @ts-ignore
+         typeConfig.extensions['ALIAS'] = fieldConfig.alias
+      }
       // Replace or create the subfields
       if (fieldConfig.subFields) {
          for (let subField of fieldConfig.subFields) {
@@ -158,7 +160,7 @@ export class Entity {
    }
 
    private buildObjectType(originalType: GraphQLObjectType, fieldConfig: FieldConfig): GraphQLObjectType {
-      logger.debug(`buildObjectType: ${fieldConfig.name}`)
+      //logger.debug(`buildObjectType: ${fieldConfig.name}`)
 
       // Build the field map for the new object
       // BE VERY CAREFUL to mutate only typeConfig
@@ -168,6 +170,11 @@ export class Entity {
       if (!fieldConfig.prune) {
          // We're not pruning so grab the original fields
          newFieldMap = typeConfig.fields
+      }
+      if (fieldConfig.alias) {
+         typeConfig.name = fieldConfig.alias
+         // @ts-ignore
+         typeConfig.extensions['ALIAS'] = fieldConfig.alias
       }
 
       // Replace or create the subfields
@@ -184,7 +191,7 @@ export class Entity {
    }
 
    private buildType(fieldConfig: FieldConfig): GraphQLObjectType | GraphQLInterfaceType {
-      logger.debug(`buildType: ${fieldConfig.name}`)
+      //logger.debug(`buildType: ${fieldConfig.name}`)
       const originalType = this.config.schema?.getType(fieldConfig.type)
       if (!originalType) {
          throw new Error(`Underlying type not found: ${fieldConfig.type}`)
@@ -199,6 +206,7 @@ export class Entity {
       }
    }
 
+   // getField deals with the top level field under mutation/query. If we did a look ahead through the entire FieldConfig chain and found no pruning we could actually return the original- but we don't
    private getField(field: FieldConfig[] | undefined, fieldMap: GraphQLFieldMap<any, any> | undefined): (GraphQLField<any, any> | undefined) {
       if (field && fieldMap) {
          if (field.length != 1) {
@@ -217,7 +225,11 @@ export class Entity {
       return ('name' in a && 'description' in a && 'type' in a && 'args' in a && 'deprecationReason' in a && 'extensions' in a && 'astNode' in a)
    }
 
-   private splunk(type: GraphQLType | GraphQLField<any, any>, types: Map<string, GraphQLType>) {
+   private isGraphQLInputField(a: any): a is GraphQLInputField {
+      return ('name' in a && 'description' in a && 'type' in a && 'defaultValue' in a && 'deprecationReason' in a && 'extensions' in a && 'astNode' in a)
+   }
+
+   private splunk(type: GraphQLType | GraphQLField<any, any> | GraphQLInputField, types: Map<string, GraphQLType>) {
       if (!type) {
          logger.warn("entity.splunk: type undefined")
          return
@@ -257,25 +269,35 @@ export class Entity {
       } else if (type instanceof GraphQLList) {
          // Wrapper for a list
          this.splunk(type.ofType, types)
-
          // Case of almost last resort
       } else if (this.isGraphQLField(type)) {
          this.splunk(type.type, types)
          type.args.forEach((arg) => {
+            logger.debug(`splunk: field: arg: ${arg.name}: ${arg.type}`)
             this.splunk(arg.type, types)
          })
-
+      } else if (this.isGraphQLInputField(type)) {
+         logger.debug(`entity.splunk: GraphQLInputField type: ${type.name}`)
       } else {
-         logger.error(`Unknown type: ${type}`)
+         logger.warn(`entity.splunk: Unknown type: ${type}`)
       }
       return
    }
 
    private splunkFields(fields: GraphQLFieldMap<any, any> | GraphQLInputFieldMap, types: Map<string, GraphQLType>) {
       for (let fieldsKey in fields) {
-         this.splunk(fields[fieldsKey].type, types)
+         const field = fields[fieldsKey]
+         this.splunk(field.type, types)
+         if (this.isGraphQLField(field)) {
+            field.args.forEach((arg) => {
+               logger.debug(`splunkFields: field: arg: ${arg.name}: ${arg.type}`)
+               this.splunk(arg.type, types)
+            })
+         }
       }
    }
+
+   // DIRE WARNING!
 
    private splunkInterfaces(interfaces: ReadonlyArray<GraphQLInterfaceType>, types: Map<string, GraphQLType>) {
       interfaces.forEach((i) => {
@@ -283,12 +305,9 @@ export class Entity {
       })
    }
 
-   // DIRE WARNING!
-
    private splunkTypes(typeArray: ReadonlyArray<GraphQLObjectType>, types: Map<string, GraphQLType>) {
       typeArray.forEach((t) => {
          this.splunk(t, types)
       })
    }
-
 }

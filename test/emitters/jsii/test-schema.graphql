@@ -1,0 +1,5 @@
+type    Required{someField:  String!}
+type    Nullable{someField:  String}
+type    NullableList{someField:  [String]}
+type    RequiredListOfNullable{someField:  [String]!}
+type    RequiredListOfRequired{someField:  [String!]!}

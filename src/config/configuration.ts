@@ -10,6 +10,7 @@ import {GraphQLClient} from "graphql-request";
 import {Command} from "commander";
 import {parse} from "yaml";
 import {existsSync, mkdirSync} from "node:fs";
+import {CDK} from "../emitters/clients/cdk";
 
 export type EntityMutations = Record<string, FieldConfig[]> & {
    create?: FieldConfig[]
@@ -35,6 +36,7 @@ export type FieldConfig = {
    type: string
    prune: boolean
    fragmentName?: string
+   alias?: string
    subFields?: FieldConfig[]
 }
 
@@ -90,6 +92,8 @@ export class Configuration {
          .option('-l, --logLevel <string>', 'logging level')
          .option('-k, --licenseKey <string>', 'Introspection license key')
          .option('-o, --outputDir <string>', 'Output directory')
+         .option('-u, --useCached <boolean>', 'Use cached schema', true)
+         .option('-s, --saveSchema <boolean>', 'Save the schema', false)
       // Don't fail when running jest
       commandLine.exitOverride()
       try {
@@ -150,7 +154,7 @@ export class Configuration {
       if (!existsSync(this.config.options.outputDir)) {
          mkdirSync(this.config.options.outputDir)
       }
-      this.config.emitters = this.getEmitters()
+      //this.config.emitters = this.getEmitters()
       logger.debug('Configuration', this.config)
       // TODO make this a config option
       // console.log(stringify(this.config))
@@ -178,7 +182,7 @@ export class Configuration {
       //
       // })()
       // return emitters
-      return [new Jsii(this.config.options.outputDir)]
+      return [new Jsii(this.config.options.outputDir), new CDK()]
    }
 
    public getEntities(): EntityConfig[] {
@@ -190,7 +194,10 @@ export class Configuration {
    }
 
    private async loadSchema() {
-      if (this.config.options.useCached) {
+      logger.debug(`configuration.loadSchema: useCached:  ${this.config.options.useCached}`)
+      logger.debug(`configuration.loadSchema: saveSchema: ${this.config.options.saveSchema}`)
+      if (this.config.options.useCached == true) {
+         logger.debug(`configuration.loadSchema: using cached schema`)
          // Load the Schema from a file
          if (this.config.options.schemaFile) {
             const buffer = fs.readFileSync(this.config.options.schemaFile, 'utf-8')
@@ -210,11 +217,13 @@ export class Configuration {
             },
          },)
 
+         logger.info('configuration.loadSchema: retrieved schema from introspection endpoint')
          const query: IntrospectionQuery = await client.request(getIntrospectionQuery())
          this.schema = buildClientSchema(query)
          if (this.config.options.saveSchema) {
-            const outputFile = path.join(__dirname, this.config.options.schemaFile)
+            const outputFile = path.join('./', this.config.options.schemaFile)
             await fs.promises.writeFile(outputFile, printSchema(this.schema))
+            logger.info('configuration.loadSchema: saved retrieved schema')
          }
       }
    }
@@ -228,10 +237,10 @@ export class Configuration {
          format.simple()
       )
       logger = createLogger({
-         format: logFormat,
-         level: this.config.options.logLevel,
-         transports: [new transports.Console()]
-      })
+                               format: logFormat,
+                               level: this.config.options.logLevel,
+                               transports: [new transports.Console()]
+                            })
 
    }
 }

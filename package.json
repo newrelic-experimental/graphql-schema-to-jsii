@@ -22,6 +22,7 @@
     "@types/jest": "^29.5.11",
     "@types/node": "^20.10.4",
     "commander": "^11.1.0",
+    "constructs": "^10.3.0",
     "gql-generator": "^1.0.19",
     "graphql": "^16.8.1",
     "graphql-request": "^6.1.0",
